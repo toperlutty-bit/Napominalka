@@ -1,0 +1,35 @@
+name: Рассылка напоминаний
+
+on:
+  schedule:
+    # Каждые 5 минут. GitHub может запускать с задержкой — рассыльщик досылает всё, что пропустил.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write # чтобы раз в сутки не дать GitHub выключить расписание
+
+concurrency:
+  group: reminders
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            web/js
+            sender
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Отправить напоминания
+        run: node sender/send.mjs
+        env:
+          DATA_TOKEN: ${{ secrets.DATA_TOKEN }}
+          DATA_REPO: ${{ vars.DATA_REPO }}
+          GITHUB_TOKEN: ${{ github.token }}

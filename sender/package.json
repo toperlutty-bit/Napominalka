@@ -1,0 +1,13 @@
+{
+  "name": "napominalka-sender",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "send": "node send.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "http_ece": "1.2.1"
+  }
+}

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Таблетки">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#2f7cf6">
+  <title>Таблетки</title>
+  <link rel="manifest" id="manifestLink">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <link rel="icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./app.css">
+  <style>
+    body { font-size: 20px; }
+    .greet { font-size: 22px; color: var(--muted); }
+    .date { font-size: 32px; font-weight: 800; }
+    .dose { border: 3px solid transparent; }
+    .dose.due { border-color: var(--orange); }
+    .dose.taken { background: var(--green-bg); }
+    .dose.paused { opacity: 0.85; }
+    .dose-head { display: flex; gap: 14px; align-items: flex-start; }
+    .pill {
+      width: 60px; height: 60px; border-radius: 50%; flex: none;
+      display: flex; align-items: center; justify-content: center; font-size: 30px;
+    }
+    .time { font-size: 36px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    .dose.due .time { color: var(--orange); }
+    .name { font-size: 26px; font-weight: 700; margin-top: 4px; }
+    .detail { font-size: 21px; }
+    .big { font-size: 28px; min-height: 72px; border-radius: 18px; margin-top: 14px; }
+    .due-label { color: var(--orange); font-weight: 700; font-size: 21px; margin-top: 12px; }
+    .taken-label { color: var(--green); font-weight: 700; font-size: 22px; margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+    .paused-label { color: var(--red); font-weight: 700; font-size: 21px; margin-top: 12px; }
+    .out-btn { margin-top: 10px; font-size: 18px; width: 100%; }
+    .progress { height: 16px; background: var(--gray-bg); border-radius: 999px; overflow: hidden; margin-top: 10px; }
+    .progress > div { height: 100%; background: var(--green); border-radius: 999px; transition: width .3s; }
+    .alert { background: #fff4e5; color: #6b3a00; }
+    @media (prefers-color-scheme: dark) { .alert { background: #3a2a14; color: #ffd8a8; } }
+    .steps { margin: 10px 0 0; padding-left: 26px; font-size: 21px; }
+    .steps li { margin: 8px 0; }
+    .share-icon { display: inline-block; vertical-align: -4px; }
+    .checklist { list-style: none; padding: 0; margin: 12px 0 0; font-size: 18px; }
+    .checklist li { margin: 6px 0; }
+    .check-result { margin-top: 14px; padding: 14px; border-radius: 14px; font-size: 19px; font-weight: 600; }
+    .check-result.ok { background: var(--green-bg); color: var(--green); }
+    .check-result.bad { background: #fde7ef; color: var(--red); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="greet" id="greet">Здравствуйте!</div>
+    <div class="date" id="date"></div>
+
+    <div class="card alert hidden" id="install">
+      <h2>📲 Установите на экран «Домой»</h2>
+      <div>Так напоминания будут приходить сами, даже когда телефон заблокирован.</div>
+      <ol class="steps">
+        <li>Внизу экрана нажмите кнопку «Поделиться»
+          <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+        </li>
+        <li>Выберите «На экран „Домой“»</li>
+        <li>Нажмите «Добавить»</li>
+        <li>Откройте «Таблетки» с экрана «Домой»</li>
+      </ol>
+    </div>
+
+    <div class="card alert hidden" id="enable">
+      <h2>🔔 Включите напоминания</h2>
+      <div>Нажмите кнопку и затем «Разрешить».</div>
+      <button class="btn-primary btn-block big" id="enableBtn">Включить напоминания</button>
+    </div>
+
+    <div class="card hidden" id="summary">
+      <div id="summaryText" style="font-size:24px;font-weight:700"></div>
+      <div class="progress"><div id="bar" style="width:0"></div></div>
+    </div>
+
+    <div id="list"></div>
+
+    <div class="card hidden" id="empty">
+      <h2>Сегодня лекарств нет</h2>
+      <div class="muted">Можно отдыхать 🙂</div>
+    </div>
+
+    <div class="card" id="checkCard">
+      <h2>🔔 Проверка уведомлений</h2>
+      <div class="muted small">Нажмите, чтобы проверить, приходят ли напоминания на этот телефон.</div>
+      <ul class="checklist" id="checklist"></ul>
+      <button class="btn-primary btn-block big" id="checkBtn">Проверить уведомления</button>
+      <div id="checkResult" class="check-result hidden"></div>
+    </div>
+
+    <div class="card alert hidden" id="noLink">
+      <h2>Нужна ссылка от родных</h2>
+      <div>Откройте ссылку, которую вам прислали родные, — в ней ключ к вашему расписанию.</div>
+    </div>
+
+    <div class="card hidden" id="errorBox">
+      <h2>Не получилось загрузить</h2>
+      <div class="muted" id="errorText"></div>
+      <button class="btn-primary btn-block big" id="retryBtn">Попробовать снова</button>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+
+  <script type="module">
+    import { GitHubStore } from "./js/github.js";
+    import * as core from "./js/core.js";
+
+    // ----- Ключ доступа: из ссылки (?r=…&k=…), затем запоминаем на телефоне -----
+    const params = new URLSearchParams(location.search);
+    let creds = null;
+    try {
+      if (params.get("k") && params.get("r")) {
+        creds = { repo: params.get("r"), token: params.get("k") };
+        localStorage.setItem("napominalka-mom", JSON.stringify(creds));
+      } else {
+        creds = JSON.parse(localStorage.getItem("napominalka-mom") || "null");
+      }
+    } catch {}
+
+    // Манифест с адресом, в котором есть ключ, — чтобы значок на экране «Домой» открывал именно эту страницу.
+    const startUrl = creds ? `${location.origin}${location.pathname}?r=${encodeURIComponent(creds.repo)}&k=${encodeURIComponent(creds.token)}` : location.href;
+    const manifest = {
+      name: "Таблетки", short_name: "Таблетки", start_url: startUrl, scope: new URL("./", location.href).href,
+      display: "standalone", background_color: "#f2f4f8", theme_color: "#2f7cf6", lang: "ru",
+      icons: [
+        { src: new URL("./icon-192.png", location.href).href, sizes: "192x192", type: "image/png" },
+        { src: new URL("./icon-512.png", location.href).href, sizes: "512x512", type: "image/png" },
+      ],
+    };
+    document.getElementById("manifestLink").href = "data:application/manifest+json;charset=utf-8," + encodeURIComponent(JSON.stringify(manifest));
+
+    const store = creds ? new GitHubStore(creds) : null;
+    let state = null;
+    let view = null;
+
+    const $ = (id) => document.getElementById(id);
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isStandalone = window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+    const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    function toast(text) {
+      const t = $("toast");
+      t.textContent = text;
+      t.classList.remove("hidden");
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => t.classList.add("hidden"), 3500);
+    }
+
+    function greeting(name) {
+      const h = new Date().getHours();
+      const base = h >= 5 && h < 12 ? "Доброе утро" : h >= 12 && h < 18 ? "Добрый день" : h >= 18 && h < 23 ? "Добрый вечер" : "Доброй ночи";
+      return name ? `${base}, ${name}!` : `${base}!`;
+    }
+    function formatDay(day) {
+      const s = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    function formatClock(iso) {
+      try {
+        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: state.settings.timezone }).format(new Date(iso));
+      } catch {
+        return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+      }
+    }
+    const toMinutes = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+    function render() {
+      if (!state) return;
+      view = core.todayDoses(state);
+      $("greet").textContent = greeting(state.settings.momName);
+      $("date").textContent = formatDay(view.day);
+
+      const active = view.doses.filter((d) => !d.paused);
+      const taken = active.filter((d) => d.takenAt).length;
+      $("summary").classList.toggle("hidden", active.length === 0);
+      $("summaryText").textContent = taken === active.length ? "Все лекарства на сегодня приняты 🎉" : `Принято ${taken} из ${active.length}`;
+      $("bar").style.width = active.length ? `${Math.round((taken / active.length) * 100)}%` : "0";
+      $("empty").classList.toggle("hidden", view.doses.length > 0);
+
+      $("list").innerHTML = view.doses.map((d) => {
+        const due = !d.takenAt && !d.paused && toMinutes(d.time) <= view.nowMinutes;
+        const cls = d.paused ? "paused" : d.takenAt ? "taken" : due ? "due" : "";
+        const details = [d.dosage, d.note].filter(Boolean).map((x) => `<div class="detail">${esc(x)}</div>`).join("");
+        let actions;
+        if (d.paused) {
+          actions = `
+            <div class="paused-label">⛔ Таблетки закончились — напоминания на паузе</div>
+            <button class="btn-primary btn-block big" data-action="resume" data-med="${esc(d.medId)}">🛒 Купила, напоминать снова</button>`;
+        } else if (d.takenAt) {
+          actions = `
+            <div class="taken-label">✅ Выпито в ${esc(formatClock(d.takenAt))}</div>
+            <button class="btn-link small" data-action="undo" data-med="${esc(d.medId)}" data-time="${esc(d.time)}">Отменить отметку</button>`;
+        } else {
+          actions = `
+            ${due ? '<div class="due-label">🔔 Пора принять!</div>' : ""}
+            <button class="btn-green btn-block big" data-action="take" data-med="${esc(d.medId)}" data-time="${esc(d.time)}">✅ Выпила</button>
+            <button class="btn-danger out-btn" data-action="out" data-med="${esc(d.medId)}" data-name="${esc(d.name)}">💊 Закончились таблетки</button>`;
+        }
+        return `
+          <div class="card dose ${cls}">
+            <div class="dose-head">
+              <div class="pill" style="background:${esc(d.color)}22;color:${esc(d.color)}">💊</div>
+              <div>
+                <div class="time">${esc(d.time)}</div>
+                <div class="name">${esc(d.name)}</div>
+                ${details}
+              </div>
+            </div>
+            ${actions}
+          </div>`;
+      }).join("");
+    }
+
+    async function load() {
+      if (!store) {
+        $("noLink").classList.remove("hidden");
+        $("checkCard").classList.add("hidden");
+        return;
+      }
+      try {
+        const res = await store.read();
+        if (!res.state) throw new Error("Расписание ещё не настроено. Попросите родных открыть страницу настроек.");
+        state = res.state;
+        $("errorBox").classList.add("hidden");
+        render();
+        await updatePushUi();
+        await renderChecklist();
+      } catch (e) {
+        $("errorText").textContent = e.message;
+        $("errorBox").classList.remove("hidden");
+      }
+    }
+
+    async function change(mutator, message) {
+      const res = await store.update(mutator, message);
+      state = res.state;
+      render();
+    }
+
+    $("retryBtn").addEventListener("click", load);
+
+    $("list").addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn || !state) return;
+      const { action, med, time, name } = btn.dataset;
+      try {
+        btn.disabled = true;
+        if (action === "take") {
+          await change((s) => core.setTaken(s, med, time, view.day, true), "Мама: выпила");
+          if (navigator.vibrate) navigator.vibrate(50);
+          toast("Отлично! Отмечено ✅");
+        } else if (action === "undo") {
+          if (!confirm("Отменить отметку о приёме?")) return;
+          await change((s) => core.setTaken(s, med, time, view.day, false), "Мама: отменила отметку");
+        } else if (action === "out") {
+          if (!confirm(`Таблетки «${name}» закончились?\n\nНапоминания о них остановятся, а родные получат сообщение.`)) return;
+          await change((s) => core.setPaused(s, med, true, "mom"), "Мама: закончились таблетки");
+          toast("Напоминания на паузе. Родные узнают.");
+        } else if (action === "resume") {
+          await change((s) => core.setPaused(s, med, false, "mom"), "Мама: купила таблетки");
+          toast("Напоминания снова включены 🔔");
+        }
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ----- Push-уведомления -----
+    function urlB64ToUint8Array(base64) {
+      const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+      const raw = atob((base64 + padding).replace(/-/g, "+").replace(/_/g, "/"));
+      return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    }
+
+    let registration = null;
+
+    async function updatePushUi() {
+      if (isIOS && !isStandalone) {
+        $("install").classList.remove("hidden");
+        $("enable").classList.add("hidden");
+        return;
+      }
+      $("install").classList.add("hidden");
+      if (!pushSupported || !registration || !state?.vapid) {
+        $("enable").classList.add("hidden");
+        return;
+      }
+      const sub = await registration.pushManager.getSubscription();
+      const known = sub && state.subscriptions.some((s) => s.subscription.endpoint === sub.endpoint);
+      if (sub && Notification.permission === "granted") {
+        $("enable").classList.add("hidden");
+        if (!known) {
+          // Подписка есть на телефоне, но её нет в данных — сохраняем снова.
+          change((s) => void core.addSubscription(s, "mom", sub.toJSON(), navigator.userAgent), "Мама: телефон подключён").catch(() => {});
+        }
+      } else {
+        $("enable").classList.remove("hidden");
+      }
+    }
+
+    $("enableBtn").addEventListener("click", async () => {
+      const btn = $("enableBtn");
+      btn.disabled = true;
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          alert("Уведомления не разрешены. Включите их: Настройки → Уведомления → Таблетки.");
+          return;
+        }
+        const reg = registration || (await navigator.serviceWorker.ready);
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(state.vapid.publicKey) });
+        await change((s) => void core.addSubscription(s, "mom", sub.toJSON(), navigator.userAgent), "Мама: телефон подключён");
+        toast("Напоминания включены 🔔");
+        await updatePushUi();
+        await renderChecklist();
+      } catch (e) {
+        alert("Не получилось включить напоминания: " + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ----- Проверка уведомлений -----
+    async function checkState() {
+      const permission = pushSupported ? Notification.permission : "unsupported";
+      const sub = pushSupported && registration ? await registration.pushManager.getSubscription() : null;
+      return { homeScreen: !isIOS || isStandalone, permission, sub };
+    }
+
+    async function renderChecklist() {
+      const s = await checkState();
+      const line = (ok, text) => `<li>${ok ? "✅" : "❌"} ${text}</li>`;
+      $("checklist").innerHTML = [
+        isIOS ? line(s.homeScreen, s.homeScreen ? "Открыто с экрана «Домой»" : "Не открыто с экрана «Домой»") : "",
+        line(s.permission === "granted", s.permission === "granted" ? "Уведомления разрешены" : s.permission === "denied" ? "Уведомления запрещены" : s.permission === "unsupported" ? "Браузер не поддерживает уведомления" : "Уведомления ещё не разрешены"),
+        line(Boolean(s.sub), s.sub ? "Телефон подключён к напоминаниям" : "Телефон ещё не подключён"),
+      ].join("");
+    }
+
+    function showCheckResult(ok, text) {
+      const el = $("checkResult");
+      el.className = `check-result ${ok ? "ok" : "bad"}`;
+      el.textContent = text;
+    }
+
+    $("checkBtn").addEventListener("click", async () => {
+      const btn = $("checkBtn");
+      btn.disabled = true;
+      try {
+        const s = await checkState();
+        if (!s.homeScreen) return showCheckResult(false, "Сначала добавьте сайт на экран «Домой» (инструкция вверху) и откройте его оттуда.");
+        if (s.permission === "unsupported") return showCheckResult(false, "Этот браузер не умеет показывать уведомления. Нужен iPhone с iOS 16.4 или новее.");
+        if (s.permission === "denied") return showCheckResult(false, "Уведомления запрещены. Включите: Настройки → Уведомления → Таблетки → Допуск уведомлений.");
+        if (!s.sub) return showCheckResult(false, "Сначала нажмите «Включить напоминания» вверху страницы.");
+        // 1) Сразу показываем уведомление с самого телефона.
+        await registration.showNotification("🔔 Уведомления на этом телефоне работают", {
+          body: "Сейчас проверим доставку с сервера.", icon: "./icon-192.png", tag: "local-test",
+        });
+        // 2) Просим сервер прислать уведомление — так же, как приходят напоминания.
+        await change((st) => core.queueTest(st, { role: "mom", endpoint: s.sub.endpoint }), "Мама: проверка уведомлений");
+        showCheckResult(true, "Первое уведомление — с телефона — должно было появиться сразу. Второе, «✅ Проверка: всё работает!», придёт с сервера в течение 5–15 минут. Если оба пришли — всё работает.");
+      } catch (e) {
+        showCheckResult(false, e.message);
+      } finally {
+        btn.disabled = false;
+        renderChecklist();
+      }
+    });
+
+    async function init() {
+      if ("serviceWorker" in navigator) {
+        try {
+          registration = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+          navigator.serviceWorker.addEventListener("message", (e) => e.data?.type === "refresh" && load());
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+      await load();
+    }
+
+    document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && load());
+    setInterval(() => document.visibilityState === "visible" && load(), 60000);
+    init();
+  </script>
+</body>
+</html>
