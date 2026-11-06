@@ -47,10 +47,29 @@
     .check-result { margin-top: 14px; padding: 14px; border-radius: 14px; font-size: 19px; font-weight: 600; }
     .check-result.ok { background: var(--green-bg); color: var(--green); }
     .check-result.bad { background: #fde7ef; color: var(--red); }
+    .meds-btn { background: var(--card); color: var(--blue); border: 2px solid var(--blue); margin-top: 6px; }
+    .back-btn { font-size: 22px; padding: 8px 0; margin-bottom: 6px; }
+    .med-card .name { margin-top: 0; }
+    .time-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+    .time-chip { background: #e7f0ff; color: var(--blue); font-weight: 800; font-size: 22px; padding: 4px 14px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+    @media (prefers-color-scheme: dark) { .time-chip { background: #1b2a45; } }
+    .edit-card label.field > span, .edit-card .field > span { font-size: 19px; display: block; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+    .edit-card input { font-size: 22px; min-height: 60px; }
+    .edit-card .chip { font-size: 18px; min-height: 44px; padding: 8px 14px; }
+    .time-row { display: flex; gap: 10px; margin-bottom: 10px; }
+    .time-row input { flex: 1; font-size: 26px; font-weight: 700; }
+    .time-row button { min-width: 60px; font-size: 22px; }
+    .edit-card select { font-size: 22px; min-height: 60px; }
+    .days-big { display: flex; gap: 8px; flex-wrap: wrap; }
+    .days-big label { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 64px; min-height: 52px; padding: 6px 10px; border-radius: 14px; background: var(--gray-bg); font-size: 20px; font-weight: 700; }
+    .days-big input { width: 24px; height: 24px; }
+    .switch-big { display: flex; gap: 12px; align-items: center; font-size: 20px; margin: 14px 0; }
+    .switch-big input { width: 30px; height: 30px; flex: none; }
   </style>
 </head>
 <body>
   <div class="wrap">
+   <div id="homeScreen">
     <div class="greet" id="greet">Здравствуйте!</div>
     <div class="date" id="date"></div>
 
@@ -85,6 +104,8 @@
       <div class="muted">Можно отдыхать 🙂</div>
     </div>
 
+    <button class="btn-block big meds-btn" id="openMedsBtn">💊 Мои лекарства и расписание</button>
+
     <div class="card" id="checkCard">
       <h2>🔔 Проверка уведомлений</h2>
       <div class="muted small">Нажмите, чтобы проверить, приходят ли напоминания на этот телефон.</div>
@@ -103,6 +124,59 @@
       <div class="muted" id="errorText"></div>
       <button class="btn-primary btn-block big" id="retryBtn">Попробовать снова</button>
     </div>
+   </div>
+
+   <!-- Мои лекарства -->
+   <section id="medsScreen" class="hidden">
+     <button class="btn-link back-btn" id="medsBack">← Назад</button>
+     <div class="date">Мои лекарства</div>
+     <div class="muted" style="margin:6px 0 4px">Здесь можно добавить лекарство, поменять время приёма или удалить.</div>
+     <div id="medsList"></div>
+     <button class="btn-primary btn-block big" id="addMedBtn">＋ Добавить лекарство</button>
+
+     <div class="card edit-card" style="margin-top:22px">
+       <div class="name" style="margin-bottom:10px">⚙️ Настройки</div>
+       <label class="field"><span>Как к вам обращаться</span><input id="sName" placeholder="Например, мама" maxlength="40" autocomplete="off"></label>
+       <label class="switch-big"><input type="checkbox" id="sRepeat"> <span>Напоминать ещё раз, если я не нажала «Выпила»</span></label>
+       <label class="field"><span>Через сколько минут</span>
+         <select id="sInterval"><option value="10">10 минут</option><option value="15">15 минут</option><option value="20">20 минут</option><option value="30">30 минут</option><option value="60">1 час</option></select>
+       </label>
+       <label class="field"><span>Сколько раз повторять</span>
+         <select id="sCount"><option value="1">1 раз</option><option value="2">2 раза</option><option value="3">3 раза</option></select>
+       </label>
+       <button class="btn-primary btn-block big" id="sSave">Сохранить настройки</button>
+     </div>
+   </section>
+
+   <!-- Добавить / изменить лекарство -->
+   <section id="editScreen" class="hidden">
+     <button class="btn-link back-btn" id="editBack">← Назад</button>
+     <div class="date" id="editTitle">Новое лекарство</div>
+     <div class="card edit-card">
+       <label class="field"><span>Название лекарства</span><input id="fName" placeholder="Например, Аспирин" maxlength="80" autocomplete="off"></label>
+       <label class="field"><span>Сколько принимать</span><input id="fDosage" placeholder="Например, 1 таблетка" maxlength="60" autocomplete="off">
+         <div class="chips" data-for="fDosage">
+           <button type="button" class="chip">1 таблетка</button><button type="button" class="chip">2 таблетки</button>
+           <button type="button" class="chip">½ таблетки</button><button type="button" class="chip">1 капсула</button>
+         </div>
+       </label>
+       <div class="field"><span>Во сколько принимать</span>
+         <div id="fTimes"></div>
+         <button type="button" class="btn-block" id="fAddTime">＋ Добавить ещё время</button>
+       </div>
+       <div class="field"><span>В какие дни</span>
+         <div class="days-big" id="fDays"></div>
+       </div>
+       <label class="field"><span>Примечание</span><input id="fNote" placeholder="Например, после еды" maxlength="120" autocomplete="off">
+         <div class="chips" data-for="fNote">
+           <button type="button" class="chip">до еды</button><button type="button" class="chip">после еды</button>
+           <button type="button" class="chip">во время еды</button><button type="button" class="chip">перед сном</button>
+         </div>
+       </label>
+     </div>
+     <button class="btn-green btn-block big" id="fSave">✅ Сохранить</button>
+     <button class="btn-danger btn-block" id="fDelete" style="margin-top:14px">🗑 Удалить это лекарство</button>
+   </section>
   </div>
 
   <div class="toast hidden" id="toast"></div>
@@ -222,6 +296,7 @@
       if (!store) {
         $("noLink").classList.remove("hidden");
         $("checkCard").classList.add("hidden");
+        $("openMedsBtn").classList.add("hidden");
         return;
       }
       try {
@@ -233,7 +308,7 @@
         await updatePushUi();
         await renderChecklist();
       } catch (e) {
-        $("errorText").textContent = e.message;
+        $("errorText").textContent = friendly(e);
         $("errorBox").classList.remove("hidden");
       }
     }
@@ -268,7 +343,7 @@
           toast("Напоминания снова включены 🔔");
         }
       } catch (err) {
-        toast(err.message);
+        toast(friendly(err));
       } finally {
         btn.disabled = false;
       }
@@ -374,6 +449,178 @@
       } finally {
         btn.disabled = false;
         renderChecklist();
+      }
+    });
+
+    // ----- Понятные сообщения об ошибках (без слов «GitHub», «ключ» и т.п.) -----
+    function friendly(err) {
+      if (err instanceof core.ValidationError) return err.message;
+      if (err?.status === 0) return "Нет интернета. Проверьте связь и попробуйте ещё раз.";
+      if (err?.status === 409) return "Не получилось сохранить — попробуйте ещё раз.";
+      return "Что-то пошло не так. Попробуйте ещё раз или попросите родных проверить.";
+    }
+
+    // ----- Мои лекарства: мама сама добавляет и меняет -----
+    let editingId = null;
+
+    function showScreen(name) {
+      for (const id of ["homeScreen", "medsScreen", "editScreen"]) $(id).classList.toggle("hidden", id !== name);
+      window.scrollTo(0, 0);
+    }
+
+    function renderSettings() {
+      if (!state) return;
+      $("sName").value = state.settings.momName || "";
+      $("sRepeat").checked = state.settings.repeatEnabled;
+      $("sInterval").value = String(state.settings.repeatInterval);
+      if (!$("sInterval").value) $("sInterval").value = "15";
+      $("sCount").value = String(Math.min(3, state.settings.repeatCount));
+    }
+
+    $("sSave").addEventListener("click", async () => {
+      const btn = $("sSave");
+      btn.disabled = true;
+      try {
+        await change((s) => {
+          s.settings.momName = core.cleanString($("sName").value, 40);
+          s.settings.repeatEnabled = $("sRepeat").checked;
+          s.settings.repeatInterval = Number($("sInterval").value) || 15;
+          s.settings.repeatCount = Number($("sCount").value) || 2;
+        }, "Мама: настройки");
+        toast("Настройки сохранены ✅");
+      } catch (err) {
+        toast(friendly(err));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function renderMeds() {
+      renderSettings();
+      const meds = state?.medicines || [];
+      $("medsList").innerHTML = meds.length
+        ? meds.map((m) => `
+          <div class="card med-card">
+            <div class="dose-head">
+              <div class="pill" style="background:${esc(m.color)}22;color:${esc(m.color)}">💊</div>
+              <div style="flex:1;min-width:0">
+                <div class="name">${esc(m.name)}</div>
+                <div class="time-chips">${m.times.map((t) => `<span class="time-chip">${esc(t)}</span>`).join("")}</div>
+                ${[m.dosage, m.note].filter(Boolean).map((x) => `<div class="detail">${esc(x)}</div>`).join("")}
+                ${m.paused ? '<div class="paused-label">⛔ Закончились — напоминания на паузе</div>' : ""}
+              </div>
+            </div>
+            <button class="btn-block big" data-edit="${esc(m.id)}">✏️ Изменить</button>
+          </div>`).join("")
+        : '<div class="card"><div class="detail">Пока нет лекарств. Нажмите «Добавить лекарство».</div></div>';
+    }
+
+    function addTimeRow(value) {
+      const row = document.createElement("div");
+      row.className = "time-row";
+      row.innerHTML = `<input type="time" value="${esc(value)}" aria-label="Время приёма"><button type="button" aria-label="Убрать это время">✕</button>`;
+      row.querySelector("button").onclick = () => {
+        if ($("fTimes").children.length > 1) row.remove();
+        else toast("Должно остаться хотя бы одно время");
+      };
+      $("fTimes").appendChild(row);
+    }
+
+    function openEditor(med) {
+      editingId = med?.id || null;
+      $("editTitle").textContent = med ? "Изменить лекарство" : "Новое лекарство";
+      $("fName").value = med?.name || "";
+      $("fDosage").value = med ? med.dosage : "1 таблетка";
+      $("fNote").value = med?.note || "";
+      $("fTimes").innerHTML = "";
+      (med?.times?.length ? med.times : ["09:00"]).forEach(addTimeRow);
+      const days = med?.days?.length ? med.days : [1, 2, 3, 4, 5, 6, 7];
+      $("fDays").innerHTML = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+        .map((d, i) => `<label><input type="checkbox" value="${i + 1}" ${days.includes(i + 1) ? "checked" : ""}>${d}</label>`).join("");
+      $("fDelete").classList.toggle("hidden", !med);
+      showScreen("editScreen");
+    }
+
+    function notifyFamily(s, title, body, id) {
+      core.queue(s, { role: "admin", payload: { title, body, tag: `edit-${id}-${Date.now()}`, url: "./" } });
+    }
+
+    $("openMedsBtn").addEventListener("click", () => {
+      renderMeds();
+      showScreen("medsScreen");
+    });
+    $("medsBack").addEventListener("click", () => showScreen("homeScreen"));
+    $("editBack").addEventListener("click", () => showScreen("medsScreen"));
+    $("addMedBtn").addEventListener("click", () => openEditor(null));
+    $("medsList").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-edit]");
+      if (b) openEditor(state.medicines.find((m) => m.id === b.dataset.edit));
+    });
+    $("fAddTime").addEventListener("click", () => {
+      const last = [...$("fTimes").querySelectorAll("input")].map((i) => i.value).filter(Boolean).sort().pop();
+      let next = "20:00";
+      if (last) {
+        const m = Math.min(toMinutes(last) + 4 * 60, 23 * 60);
+        next = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      }
+      addTimeRow(next);
+    });
+    document.querySelectorAll("#editScreen .chips").forEach((box) => {
+      box.addEventListener("click", (e) => {
+        const chip = e.target.closest(".chip");
+        if (chip) $(box.dataset.for).value = chip.textContent;
+      });
+    });
+
+    $("fSave").addEventListener("click", async () => {
+      const name = $("fName").value.trim();
+      const times = [...$("fTimes").querySelectorAll("input")].map((i) => i.value).filter(Boolean);
+      if (!name) { toast("Напишите название лекарства"); $("fName").focus(); return; }
+      if (!times.length) { toast("Укажите, во сколько принимать"); return; }
+      const days = [...$("fDays").querySelectorAll("input:checked")].map((i) => Number(i.value));
+      if (!days.length) { toast("Отметьте хотя бы один день"); return; }
+      const btn = $("fSave");
+      btn.disabled = true;
+      try {
+        const isNew = !editingId;
+        await change((s) => {
+          const existing = editingId ? s.medicines.find((m) => m.id === editingId) : null;
+          const med = core.saveMedicine(s, {
+            id: editingId || undefined,
+            name,
+            dosage: $("fDosage").value,
+            note: $("fNote").value,
+            times,
+            days,
+            color: existing?.color || core.COLORS[s.medicines.length % core.COLORS.length],
+          });
+          const mom = core.momLabel(s);
+          notifyFamily(s, `✏️ ${mom} ${isNew ? "добавила лекарство" : "изменила расписание"}`, `${med.name}: ${med.times.join(", ")}${med.dosage ? ` — ${med.dosage}` : ""}`, med.id);
+        }, isNew ? "Мама: добавила лекарство" : "Мама: изменила лекарство");
+        toast("Сохранено ✅ Напоминания придут в новое время.");
+        renderMeds();
+        showScreen("medsScreen");
+      } catch (err) {
+        toast(friendly(err));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    $("fDelete").addEventListener("click", async () => {
+      const med = state.medicines.find((m) => m.id === editingId);
+      if (!med || !confirm(`Удалить «${med.name}»?\n\nНапоминания о нём больше не будут приходить.`)) return;
+      try {
+        await change((s) => {
+          core.deleteMedicine(s, med.id);
+          const mom = core.momLabel(s);
+          notifyFamily(s, `🗑 ${mom} удалила лекарство`, med.name, med.id);
+        }, "Мама: удалила лекарство");
+        toast("Лекарство удалено");
+        renderMeds();
+        showScreen("medsScreen");
+      } catch (err) {
+        toast(friendly(err));
       }
     });
 

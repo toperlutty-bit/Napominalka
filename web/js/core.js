@@ -50,6 +50,12 @@ export function randomId(bytes = 9) {
   return btoa(String.fromCharCode(...arr)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/** Как называть маму в уведомлениях родным: «Мама», «Галина Ивановна» (с заглавной буквы). */
+export function momLabel(state) {
+  const name = state.settings.momName?.trim() || "Мама";
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 export function cleanString(v, max) {
   return String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
@@ -112,7 +118,7 @@ export function setPaused(state, medId, paused, by) {
   med.pausedAt = med.paused ? med.pausedAt || new Date().toISOString() : null;
   med.pausedBy = med.paused ? by : null;
   if (med.paused && !wasPaused && by === "mom") {
-    const mom = state.settings.momName?.trim() || "Мама";
+    const mom = momLabel(state);
     queue(state, {
       role: "admin",
       payload: {
@@ -210,7 +216,7 @@ function medDetails(med) {
 
 export function eventPayload(state, ev) {
   const { med, time, day } = ev;
-  const mom = state.settings.momName?.trim() || "Мама";
+  const mom = momLabel(state);
   const details = medDetails(med);
   const tag = `dose-${med.id}-${day}-${time}`;
   if (ev.kind === "dose") {
