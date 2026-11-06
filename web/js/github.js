@@ -66,7 +66,18 @@ export class GitHubStore {
 
   /** Проверяет, что ключ даёт доступ к репозиторию на запись. */
   async checkAccess() {
-    const repo = await this.request("GET", `/repos/${this.repo}`);
+    let repo;
+    try {
+      repo = await this.request("GET", `/repos/${this.repo}`);
+    } catch (e) {
+      if (e.status === 404) {
+        throw new StoreError(
+          `Ключ не видит репозиторий ${this.repo}. В настройках ключа выберите Repository access → Only select repositories → ${this.repo.split("/")[1]} и Permissions → Contents: Read and write.`,
+          404,
+        );
+      }
+      throw e;
+    }
     if (repo.permissions && !repo.permissions.push) throw new StoreError("Ключ даёт только чтение. Нужен доступ Contents: Read and write.", 403);
     return { private: repo.private };
   }
@@ -79,7 +90,17 @@ export class GitHubStore {
     } catch (e) {
       if (e.status === 404) {
         // Отличаем «нет файла» от «нет репозитория/доступа».
-        await this.request("GET", `/repos/${this.repo}`);
+        try {
+          await this.request("GET", `/repos/${this.repo}`);
+        } catch (e2) {
+          if (e2.status === 404) {
+            throw new StoreError(
+              `Ключ не видит репозиторий ${this.repo}. В настройках ключа выберите Repository access → Only select repositories → ${this.repo.split("/")[1]} и Permissions → Contents: Read and write.`,
+              404,
+            );
+          }
+          throw e2;
+        }
         return { state: null, sha: null };
       }
       throw e;
