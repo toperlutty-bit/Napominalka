@@ -60,5 +60,5 @@ curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"   # вручную за�
 - `src/schedule.js` — что и кому отправить в данную минуту (часовой пояс, повторы, пауза).
 - `src/webpush.js` — Web Push: шифрование aes128gcm (RFC 8291) и VAPID (RFC 8292) на WebCrypto,
   без сторонних библиотек. VAPID-ключи создаются автоматически при первой настройке.
-- `public/` — страницы (`admin.html`, `mom.html`), service worker (`sw.js`), иконки.
+- `public/` — страницы (`admin.html`, `mom.html`), service worker (`sw.js`), иконки. Перед сборкой они встраиваются в код воркера (`scripts/build-assets.mjs` → `src/assets.generated.js`).
 - Данные хранятся в Cloudflare KV одним JSON-документом.

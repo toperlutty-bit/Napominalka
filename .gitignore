@@ -6,3 +6,4 @@ build/
 node_modules/
 .wrangler/
 .dev.vars
+site/src/assets.generated.js

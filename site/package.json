@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test test/*.test.mjs"
+    "build": "node scripts/build-assets.mjs",
+    "test": "node scripts/build-assets.mjs && node --test test/*.test.mjs"
   },
   "devDependencies": {
     "http_ece": "1.2.1",

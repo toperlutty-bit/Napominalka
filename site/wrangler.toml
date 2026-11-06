@@ -3,16 +3,15 @@ main = "src/worker.js"
 compatibility_date = "2025-09-01"
 workers_dev = true
 
-[assets]
-directory = "./public"
-binding = "ASSETS"
-html_handling = "none"
+# Страницы из public/ встраиваются в код воркера перед сборкой.
+[build]
+command = "node scripts/build-assets.mjs"
 
 # Хранилище данных (расписание, отметки, подписки).
-# При деплое через GitHub Actions id подставляется автоматически.
+# id хранилища в аккаунте Cloudflare (не секрет).
 [[kv_namespaces]]
 binding = "DB"
-id = "__KV_NAMESPACE_ID__"
+id = "84356a67928645c39140d187febb76bb"
 
 # Проверять расписание каждую минуту.
 [triggers]

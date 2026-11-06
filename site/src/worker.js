@@ -1,6 +1,7 @@
 // Напоминалка — сайт, который сам присылает маме push-уведомления о таблетках.
 // Работает на Cloudflare Workers: страницы + API + запуск по расписанию каждую минуту.
 
+import { ASSETS } from "./assets.generated.js";
 import { generateVapidKeys, sendPush, b64urlEncode, b64urlDecode } from "./webpush.js";
 import { dueEvents, localTime, dosesForDay, isValidTimeZone, parseTime, formatTime, doseKey, previousDay } from "./schedule.js";
 
@@ -342,12 +343,23 @@ function adminView(state) {
 
 // ---------- Маршруты ----------
 
-async function serveAsset(env, request, path, replacements) {
-  const res = await env.ASSETS.fetch(new Request(new URL(path, request.url)));
-  if (!replacements) return res;
-  let text = await res.text();
-  for (const [k, v] of Object.entries(replacements)) text = text.split(k).join(v);
-  return new Response(text, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+/** Отдаёт встроенный файл из public/ (см. scripts/build-assets.mjs). */
+function staticResponse(path, replacements) {
+  const asset = ASSETS[path];
+  if (!asset) return new Response("Не найдено", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  let body;
+  if (asset.text !== undefined) {
+    body = asset.text;
+    for (const [k, v] of Object.entries(replacements || {})) body = body.split(k).join(v);
+  } else {
+    body = Uint8Array.from(atob(asset.base64), (c) => c.charCodeAt(0));
+  }
+  const cache = path.endsWith(".html") || path === "/sw.js" ? "no-cache" : "public, max-age=3600";
+  return new Response(body, { headers: { "Content-Type": asset.type, "Cache-Control": cache } });
+}
+
+function serveAsset(env, request, path, replacements) {
+  return staticResponse(path, replacements);
 }
 
 async function handleMomApi(request, env, state, token, action) {
@@ -598,7 +610,7 @@ async function handleFetch(request, env) {
     return handleAdminApi(request, env, state, m[1]);
   }
 
-  return env.ASSETS.fetch(request);
+  return staticResponse(path);
 }
 
 export default {
