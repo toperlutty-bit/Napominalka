@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Напоминалка">
+  <meta name="theme-color" content="#2f7cf6">
+  <title>Напоминалка — настройка</title>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    .med { border-top: 1px solid var(--line); padding: 14px 0; }
+    .med:first-of-type { border-top: 0; }
+    .med-name { font-weight: 700; font-size: 20px; }
+    .times { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+    .time-chip { background: #e7f0ff; color: var(--blue); font-weight: 700; padding: 3px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+    @media (prefers-color-scheme: dark) { .time-chip { background: #1b2a45; } }
+    .dose-row { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+    .dose-row:first-child { border-top: 0; }
+    .dose-time { font-weight: 700; width: 56px; font-variant-numeric: tabular-nums; }
+    .link-box { word-break: break-all; background: var(--gray-bg); padding: 10px 12px; border-radius: 12px; font-size: 15px; }
+    .time-input { display: flex; gap: 8px; margin-bottom: 8px; }
+    .time-input input { flex: 1; }
+    .days { display: flex; gap: 6px; flex-wrap: wrap; }
+    .days label { display: flex; align-items: center; gap: 4px; background: var(--gray-bg); padding: 6px 10px; border-radius: 10px; font-size: 16px; }
+    .days input { width: 18px; height: 18px; }
+    .colors { display: flex; gap: 10px; flex-wrap: wrap; }
+    .color-opt { width: 36px; height: 36px; border-radius: 50%; border: 3px solid transparent; padding: 0; min-height: 0; }
+    .color-opt.sel { border-color: var(--text); }
+    .switch { display: flex; align-items: center; gap: 12px; margin: 12px 0; }
+    dialog { border: 0; border-radius: var(--radius); padding: 0; overflow-y: auto; overscroll-behavior: contain; width: min(560px, calc(100% - 24px)); max-height: calc(100% - 24px); background: var(--card); color: var(--text); }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+    .dialog-body { padding: 18px; }
+    .history-day { margin: 10px 0; }
+    .steps { padding-left: 22px; margin: 8px 0; }
+    .steps li { margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Первый запуск -->
+    <section id="setup" class="hidden">
+      <h1>💊 Напоминалка</h1>
+      <p class="muted">Сайт сам присылает маме напоминания выпить таблетки по графику. Придумайте пароль для этой страницы настроек.</p>
+      <div class="card">
+        <form id="setupForm">
+          <label class="field"><span>Пароль (не короче 6 символов)</span><input type="password" name="password" autocomplete="new-password" required minlength="6"></label>
+          <label class="field"><span>Повторите пароль</span><input type="password" name="password2" autocomplete="new-password" required minlength="6"></label>
+          <button class="btn-primary btn-block">Начать</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Вход -->
+    <section id="login" class="hidden">
+      <h1>💊 Напоминалка</h1>
+      <div class="card">
+        <form id="loginForm">
+          <label class="field"><span>Пароль</span><input type="password" name="password" autocomplete="current-password" required></label>
+          <button class="btn-primary btn-block">Войти</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Основная страница -->
+    <section id="main" class="hidden">
+      <div class="row">
+        <h1 class="grow">💊 Напоминалка</h1>
+        <button class="btn-link" id="logoutBtn">Выйти</button>
+      </div>
+      <div class="muted" id="todayTitle"></div>
+
+      <div class="card" id="alerts"></div>
+
+      <div class="card">
+        <h2>Сегодня у мамы</h2>
+        <div id="today"></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:6px">
+          <h2 class="grow" style="margin:0">Лекарства и график</h2>
+        </div>
+        <div id="meds"></div>
+        <button class="btn-primary btn-block" id="addMedBtn" style="margin-top:12px">＋ Добавить лекарство</button>
+      </div>
+
+      <div class="card">
+        <h2>📱 Телефон мамы</h2>
+        <ol class="steps">
+          <li>Отправьте маме ссылку ниже (в WhatsApp, СМС) и откройте её на iPhone в <b>Safari</b>.</li>
+          <li>Нажмите «Поделиться» → «На экран „Домой“» → «Добавить».</li>
+          <li>Откройте «Таблетки» с экрана «Домой» и нажмите «Включить напоминания» → «Разрешить».</li>
+          <li>Нажмите здесь «Проверить» — маме должно прийти уведомление.</li>
+        </ol>
+        <div class="link-box" id="momLink"></div>
+        <div class="row" style="margin-top:10px">
+          <button id="copyLinkBtn">📋 Скопировать</button>
+          <button id="shareLinkBtn" class="hidden">📤 Отправить</button>
+          <button class="btn-primary" id="testMomBtn">🔔 Проверить</button>
+        </div>
+        <h3 style="margin-top:18px">Устройства мамы</h3>
+        <div id="momDevices"></div>
+        <button class="btn-link small" id="resetLinkBtn">Сделать новую ссылку (старая перестанет работать)</button>
+      </div>
+
+      <div class="card">
+        <h2>🔔 Уведомления для вас</h2>
+        <p class="muted small" style="margin-top:0">Придут на это устройство, если у мамы закончились таблетки или она пропустила приём. На iPhone сначала добавьте эту страницу на экран «Домой» и откройте оттуда.</p>
+        <div id="adminDevices"></div>
+        <div class="row">
+          <button class="btn-primary" id="subscribeAdminBtn">Получать на этом устройстве</button>
+          <button id="testAdminBtn">Проверить</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>⚙️ Настройки</h2>
+        <form id="settingsForm">
+          <label class="field"><span>Как обращаться к маме (для приветствия)</span><input name="momName" placeholder="Например, мама или Галина Ивановна" maxlength="40"></label>
+          <label class="field"><span>Часовой пояс мамы</span><select name="timezone" id="tzSelect"></select></label>
+          <label class="switch"><input type="checkbox" name="repeatEnabled"> <span>Повторять напоминание, если мама не нажала «Выпила»</span></label>
+          <div class="row">
+            <label class="field grow"><span>Через сколько минут</span>
+              <select name="repeatInterval">
+                <option value="5">5 мин</option><option value="10">10 мин</option><option value="15">15 мин</option>
+                <option value="20">20 мин</option><option value="30">30 мин</option><option value="60">60 мин</option>
+              </select>
+            </label>
+            <label class="field grow"><span>Сколько раз</span>
+              <select name="repeatCount">
+                <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+              </select>
+            </label>
+          </div>
+          <label class="switch"><input type="checkbox" name="notifyMissed"> <span>Сообщать мне, если приём так и не отмечен</span></label>
+          <button class="btn-primary btn-block">Сохранить настройки</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>📅 История за неделю</h2>
+        <div id="history"></div>
+      </div>
+
+      <div class="card">
+        <h2>🔑 Пароль</h2>
+        <form id="passwordForm" class="row">
+          <input class="grow" type="password" name="password" placeholder="Новый пароль" minlength="6" autocomplete="new-password" required>
+          <button>Сменить</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <!-- Редактирование лекарства -->
+  <dialog id="medDialog">
+    <form id="medForm" class="dialog-body" method="dialog">
+      <h2 id="medDialogTitle">Новое лекарство</h2>
+      <input type="hidden" name="id">
+      <label class="field"><span>Название</span><input name="name" required maxlength="80" placeholder="Например, Аспирин"></label>
+      <label class="field"><span>Сколько принимать</span><input name="dosage" maxlength="60" placeholder="Например, 1 таблетка">
+        <div class="chips" data-target="dosage">
+          <button type="button" class="chip">1 таблетка</button><button type="button" class="chip">2 таблетки</button>
+          <button type="button" class="chip">½ таблетки</button><button type="button" class="chip">1 капсула</button>
+          <button type="button" class="chip">10 капель</button>
+        </div>
+      </label>
+      <label class="field"><span>Примечание</span><input name="note" maxlength="120" placeholder="Например, после еды">
+        <div class="chips" data-target="note">
+          <button type="button" class="chip">до еды</button><button type="button" class="chip">после еды</button>
+          <button type="button" class="chip">во время еды</button><button type="button" class="chip">натощак</button>
+          <button type="button" class="chip">перед сном</button>
+        </div>
+      </label>
+      <div class="field">
+        <span class="muted small" style="font-weight:600">Время приёма</span>
+        <div id="timesBox" style="margin-top:6px"></div>
+        <button type="button" class="btn-link" id="addTimeBtn">＋ Добавить время</button>
+      </div>
+      <div class="field">
+        <span class="muted small" style="font-weight:600">Дни недели</span>
+        <div class="days" id="daysBox" style="margin-top:6px"></div>
+      </div>
+      <div class="field">
+        <span class="muted small" style="font-weight:600">Цвет</span>
+        <div class="colors" id="colorsBox" style="margin-top:6px"></div>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button type="button" class="btn-danger hidden" id="deleteMedBtn">Удалить</button>
+        <span class="grow"></span>
+        <button type="button" id="cancelMedBtn">Отмена</button>
+        <button type="submit" class="btn-primary" id="saveMedBtn">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast hidden" id="toast"></div>
+
+  <script>
+    const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+    const TIMEZONES = [
+      ["Europe/Kaliningrad", "Калининград (МСК−1)"], ["Europe/Moscow", "Москва (МСК)"], ["Europe/Samara", "Самара (МСК+1)"],
+      ["Asia/Yekaterinburg", "Екатеринбург (МСК+2)"], ["Asia/Omsk", "Омск (МСК+3)"], ["Asia/Novosibirsk", "Новосибирск (МСК+4)"],
+      ["Asia/Krasnoyarsk", "Красноярск (МСК+4)"], ["Asia/Irkutsk", "Иркутск (МСК+5)"], ["Asia/Yakutsk", "Якутск (МСК+6)"],
+      ["Asia/Vladivostok", "Владивосток (МСК+7)"], ["Asia/Magadan", "Магадан (МСК+8)"], ["Asia/Kamchatka", "Камчатка (МСК+9)"],
+      ["Europe/Minsk", "Минск"], ["Europe/Kyiv", "Киев"], ["Asia/Almaty", "Алматы"], ["Asia/Tashkent", "Ташкент"],
+      ["Asia/Tbilisi", "Тбилиси"], ["Asia/Yerevan", "Ереван"], ["Asia/Baku", "Баку"], ["Europe/Berlin", "Берлин"],
+      ["Europe/London", "Лондон"], ["America/New_York", "Нью-Йорк"], ["Asia/Jerusalem", "Иерусалим"],
+    ];
+
+    let view = null;
+    let editing = null;
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    function toast(text) {
+      const t = $("toast");
+      t.textContent = text;
+      t.classList.remove("hidden");
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => t.classList.add("hidden"), 3500);
+    }
+
+    async function api(path, method = "GET", body) {
+      const res = await fetch(`/api/admin/${path}`, {
+        method,
+        headers: body !== undefined ? { "Content-Type": "application/json" } : {},
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && path !== "login") {
+        show("login");
+        throw new Error("Нужно войти");
+      }
+      if (!res.ok) throw new Error(data.error || `Ошибка ${res.status}`);
+      return data;
+    }
+
+    function show(section) {
+      for (const id of ["setup", "login", "main"]) $(id).classList.toggle("hidden", id !== section);
+    }
+
+    function fmtDay(day) {
+      const s = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    function fmtClock(iso) {
+      try {
+        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: view.settings.timezone }).format(new Date(iso));
+      } catch { return ""; }
+    }
+    const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+    function doseStatus(d, isPast) {
+      if (d.paused) return '<span class="badge badge-red">закончились</span>';
+      if (d.takenAt) return `<span class="badge badge-green">✅ ${esc(fmtClock(d.takenAt))}</span>`;
+      if (isPast) return '<span class="badge badge-orange">не отмечено</span>';
+      return '<span class="badge">ждём</span>';
+    }
+
+    function render() {
+      const v = view;
+      $("todayTitle").textContent = fmtDay(v.today.day);
+
+      // Предупреждения
+      const alerts = [];
+      const paused = v.medicines.filter((m) => m.paused);
+      for (const m of paused) {
+        alerts.push(`<div class="row" style="margin:6px 0"><div class="grow">⛔ <b>${esc(m.name)}</b> — закончились${m.pausedBy === "mom" ? " (отметила мама)" : ""}. Напоминания на паузе.</div>
+          <button class="btn-green" data-resume="${esc(m.id)}">Купили</button></div>`);
+      }
+      if (!v.subscriptions.some((s) => s.role === "mom")) alerts.push("<div>📱 Мамин телефон ещё не подключён — см. раздел «Телефон мамы».</div>");
+      if (!v.medicines.length) alerts.push("<div>💊 Добавьте лекарства и время приёма.</div>");
+      $("alerts").innerHTML = alerts.join("");
+      $("alerts").classList.toggle("hidden", alerts.length === 0);
+
+      // Сегодня
+      $("today").innerHTML = v.today.doses.length
+        ? v.today.doses.map((d) => `<div class="dose-row"><span class="dose-time">${esc(d.time)}</span><span class="dot" style="background:${esc(d.color)}"></span><span class="grow">${esc(d.name)}</span>${doseStatus(d, toMin(d.time) <= v.today.nowMinutes)}</div>`).join("")
+        : '<div class="muted">На сегодня приёмов нет.</div>';
+
+      // Лекарства
+      $("meds").innerHTML = v.medicines.length
+        ? v.medicines.map((m) => `
+          <div class="med">
+            <div class="row"><span class="dot" style="background:${esc(m.color)}"></span><span class="med-name grow">${esc(m.name)}</span>
+              ${m.paused ? '<span class="badge badge-red">закончились</span>' : ""}</div>
+            <div class="times">${m.times.map((t) => `<span class="time-chip">${esc(t)}</span>`).join("")}</div>
+            <div class="muted small">${esc([m.dosage, m.note].filter(Boolean).join(" · "))}${m.days?.length ? `${m.dosage || m.note ? " · " : ""}${m.days.map((d) => WEEKDAYS[d - 1]).join(", ")}` : ""}</div>
+            <div class="row" style="margin-top:8px">
+              <button data-edit="${esc(m.id)}">✏️ Изменить</button>
+              ${m.paused
+                ? `<button class="btn-green" data-resume="${esc(m.id)}">🛒 Купили — возобновить</button>`
+                : `<button class="btn-danger" data-pause="${esc(m.id)}">Закончились</button>`}
+            </div>
+          </div>`).join("")
+        : '<div class="muted">Пока нет лекарств.</div>';
+
+      // Ссылка
+      $("momLink").textContent = v.momUrl || "";
+      const momDevs = v.subscriptions.filter((s) => s.role === "mom");
+      const adminDevs = v.subscriptions.filter((s) => s.role === "admin");
+      const devList = (list) => list.length
+        ? list.map((s) => `<div class="dose-row"><span class="grow">${esc(s.label)} <span class="muted small">с ${esc(new Date(s.createdAt).toLocaleDateString("ru-RU"))}</span></span><button class="btn-link small" data-unsub="${esc(s.id)}">Удалить</button></div>`).join("")
+        : '<div class="muted small">Нет подключённых устройств.</div>';
+      $("momDevices").innerHTML = devList(momDevs);
+      $("adminDevices").innerHTML = devList(adminDevs);
+
+      // Настройки
+      const f = $("settingsForm");
+      const tz = v.settings.timezone;
+      const options = TIMEZONES.some(([id]) => id === tz) ? TIMEZONES : [[tz, tz], ...TIMEZONES];
+      $("tzSelect").innerHTML = options.map(([id, label]) => `<option value="${esc(id)}">${esc(label)}</option>`).join("");
+      if (document.activeElement?.form !== f) {
+        f.momName.value = v.settings.momName || "";
+        f.timezone.value = tz;
+        f.repeatEnabled.checked = v.settings.repeatEnabled;
+        f.repeatInterval.value = String(v.settings.repeatInterval);
+        f.repeatCount.value = String(v.settings.repeatCount);
+        f.notifyMissed.checked = v.settings.notifyMissed;
+      }
+
+      // История
+      $("history").innerHTML = v.history.map((h, i) => {
+        const doses = h.doses.filter((d) => !d.paused);
+        if (!doses.length) return "";
+        const taken = doses.filter((d) => d.takenAt).length;
+        const missed = doses.filter((d) => !d.takenAt).map((d) => `${d.time} ${d.name}`);
+        return `<div class="history-day"><div class="row"><b class="grow">${i === 0 ? "Сегодня" : i === 1 ? "Вчера" : esc(fmtDay(h.day))}</b>
+          <span class="badge ${taken === doses.length ? "badge-green" : "badge-orange"}">${taken} из ${doses.length}</span></div>
+          ${missed.length ? `<div class="muted small">Не отмечено: ${esc(missed.join(", "))}</div>` : ""}</div>`;
+      }).join("") || '<div class="muted">Пока пусто.</div>';
+    }
+
+    async function refresh() {
+      view = await api("state");
+      render();
+    }
+
+    // ----- Вход -----
+    $("setupForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      if (f.password.value !== f.password2.value) return toast("Пароли не совпадают");
+      try {
+        await api("setup", "POST", { password: f.password.value });
+        show("main");
+        await refresh();
+        toast("Готово! Добавьте лекарства.");
+      } catch (err) { toast(err.message); }
+    });
+
+    $("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await api("login", "POST", { password: e.target.password.value });
+        e.target.reset();
+        show("main");
+        await refresh();
+      } catch (err) { toast(err.message); }
+    });
+
+    $("logoutBtn").addEventListener("click", async () => {
+      await api("logout", "POST", {}).catch(() => {});
+      show("login");
+    });
+
+    // ----- Действия со списками -----
+    document.addEventListener("click", async (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      try {
+        if (b.dataset.edit) openMed(view.medicines.find((m) => m.id === b.dataset.edit));
+        else if (b.dataset.pause) {
+          const m = view.medicines.find((x) => x.id === b.dataset.pause);
+          if (!confirm(`Таблетки «${m.name}» закончились? Напоминания о них встанут на паузу.`)) return;
+          view = await api(`medicines/${b.dataset.pause}/pause`, "POST", { paused: true });
+          render();
+          toast("Напоминания на паузе");
+        } else if (b.dataset.resume) {
+          view = await api(`medicines/${b.dataset.resume}/pause`, "POST", { paused: false });
+          render();
+          toast("Напоминания снова включены 🔔");
+        } else if (b.dataset.unsub) {
+          if (!confirm("Удалить это устройство? На него перестанут приходить уведомления.")) return;
+          view = await api(`subscriptions/${b.dataset.unsub}`, "DELETE");
+          render();
+        }
+      } catch (err) { toast(err.message); }
+    });
+
+    $("addMedBtn").addEventListener("click", () => openMed(null));
+
+    // ----- Диалог лекарства -----
+    function addTimeRow(value) {
+      const row = document.createElement("div");
+      row.className = "time-input";
+      row.innerHTML = `<input type="time" required value="${esc(value)}"><button type="button" aria-label="Удалить время">✕</button>`;
+      row.querySelector("button").onclick = () => row.remove();
+      $("timesBox").appendChild(row);
+    }
+
+    function openMed(med) {
+      editing = med;
+      const f = $("medForm");
+      f.reset();
+      $("medDialogTitle").textContent = med ? "Изменить лекарство" : "Новое лекарство";
+      f.id.value = med?.id || "";
+      f.name.value = med?.name || "";
+      f.dosage.value = med?.dosage ?? "1 таблетка";
+      f.note.value = med?.note || "";
+      $("timesBox").innerHTML = "";
+      (med?.times?.length ? med.times : ["09:00"]).forEach(addTimeRow);
+      const days = med?.days?.length ? med.days : [1, 2, 3, 4, 5, 6, 7];
+      $("daysBox").innerHTML = WEEKDAYS.map((d, i) => `<label><input type="checkbox" value="${i + 1}" ${days.includes(i + 1) ? "checked" : ""}>${d}</label>`).join("");
+      const color = med?.color || view.colors[view.medicines.length % view.colors.length];
+      $("colorsBox").innerHTML = view.colors.map((c) => `<button type="button" class="color-opt ${c === color ? "sel" : ""}" data-color="${c}" style="background:${c}" aria-label="Цвет"></button>`).join("");
+      $("deleteMedBtn").classList.toggle("hidden", !med);
+      $("medDialog").showModal();
+    }
+
+    $("addTimeBtn").addEventListener("click", () => {
+      const inputs = [...$("timesBox").querySelectorAll("input")];
+      const last = inputs.map((i) => i.value).filter(Boolean).sort().pop();
+      let next = "20:00";
+      if (last) {
+        const m = Math.min(toMin(last) + 4 * 60, 23 * 60);
+        next = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      }
+      addTimeRow(next);
+    });
+
+    $("colorsBox").addEventListener("click", (e) => {
+      const b = e.target.closest(".color-opt");
+      if (!b) return;
+      $("colorsBox").querySelectorAll(".color-opt").forEach((x) => x.classList.toggle("sel", x === b));
+    });
+
+    document.querySelectorAll(".chips").forEach((box) => {
+      box.addEventListener("click", (e) => {
+        const chip = e.target.closest(".chip");
+        if (chip) $("medForm")[box.dataset.target].value = chip.textContent;
+      });
+    });
+
+    $("cancelMedBtn").addEventListener("click", () => $("medDialog").close());
+
+    $("deleteMedBtn").addEventListener("click", async () => {
+      if (!editing || !confirm(`Удалить «${editing.name}»?`)) return;
+      try {
+        view = await api(`medicines/${editing.id}`, "DELETE");
+        $("medDialog").close();
+        render();
+      } catch (err) { toast(err.message); }
+    });
+
+    $("medForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const times = [...$("timesBox").querySelectorAll("input")].map((i) => i.value).filter(Boolean);
+      if (!times.length) return toast("Добавьте время приёма");
+      const days = [...$("daysBox").querySelectorAll("input:checked")].map((i) => Number(i.value));
+      if (!days.length) return toast("Выберите хотя бы один день");
+      const color = $("colorsBox").querySelector(".sel")?.dataset.color;
+      try {
+        view = await api("medicines", "POST", { id: f.id.value || undefined, name: f.name.value, dosage: f.dosage.value, note: f.note.value, times, days, color });
+        $("medDialog").close();
+        render();
+        toast("Сохранено. Напоминания придут по графику.");
+      } catch (err) { toast(err.message); }
+    });
+
+    // ----- Настройки -----
+    $("settingsForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      try {
+        view = await api("settings", "PUT", {
+          momName: f.momName.value,
+          timezone: f.timezone.value,
+          repeatEnabled: f.repeatEnabled.checked,
+          repeatInterval: Number(f.repeatInterval.value),
+          repeatCount: Number(f.repeatCount.value),
+          notifyMissed: f.notifyMissed.checked,
+        });
+        f.querySelector("button").blur();
+        render();
+        toast("Настройки сохранены");
+      } catch (err) { toast(err.message); }
+    });
+
+    $("passwordForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await api("password", "POST", { password: e.target.password.value });
+        e.target.reset();
+        toast("Пароль изменён");
+      } catch (err) { toast(err.message); }
+    });
+
+    // ----- Ссылка для мамы -----
+    $("copyLinkBtn").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(view.momUrl);
+        toast("Ссылка скопирована");
+      } catch {
+        prompt("Скопируйте ссылку:", view.momUrl);
+      }
+    });
+    if (navigator.share) {
+      $("shareLinkBtn").classList.remove("hidden");
+      $("shareLinkBtn").addEventListener("click", () => navigator.share({ title: "Таблетки", text: "Открой эту ссылку в Safari и добавь на экран «Домой»", url: view.momUrl }).catch(() => {}));
+    }
+
+    async function sendTest(role) {
+      try {
+        const r = await api("test", "POST", { role });
+        view = r.view;
+        render();
+        if (!r.total) toast(role === "mom" ? "Мамин телефон ещё не подключён" : "Это устройство ещё не подключено");
+        else if (r.sent) toast(`Отправлено на ${r.sent} из ${r.total} устройств`);
+        else toast("Не удалось отправить. Переподключите устройство.");
+      } catch (err) { toast(err.message); }
+    }
+    $("testMomBtn").addEventListener("click", () => sendTest("mom"));
+    $("testAdminBtn").addEventListener("click", () => sendTest("admin"));
+
+    $("resetLinkBtn").addEventListener("click", async () => {
+      if (!confirm("Сделать новую ссылку? Маме нужно будет заново добавить сайт на экран «Домой».")) return;
+      try { view = await api("reset-mom-link", "POST", {}); render(); toast("Новая ссылка готова"); } catch (err) { toast(err.message); }
+    });
+
+    // ----- Уведомления для родственника -----
+    function urlB64ToUint8Array(base64) {
+      const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+      const raw = atob((base64 + padding).replace(/-/g, "+").replace(/_/g, "/"));
+      return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    }
+
+    $("subscribeAdminBtn").addEventListener("click", async () => {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        return toast("Этот браузер не умеет уведомления. На iPhone добавьте страницу на экран «Домой» и откройте оттуда.");
+      }
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") return toast("Уведомления не разрешены");
+        const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(view.vapidPublicKey) });
+        view = await api("subscribe", "POST", { subscription: sub.toJSON() });
+        render();
+        toast("Готово! Уведомления будут приходить сюда.");
+      } catch (err) { toast("Не получилось: " + err.message); }
+    });
+
+    // ----- Старт -----
+    (async () => {
+      try {
+        const status = await api("status");
+        if (status.needsSetup) show("setup");
+        else if (status.loggedIn) { show("main"); await refresh(); }
+        else show("login");
+      } catch (err) { toast(err.message); }
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+    })();
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && view && !$("medDialog").open) refresh().catch(() => {});
+    });
+  </script>
+</body>
+</html>

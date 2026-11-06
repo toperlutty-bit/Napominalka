@@ -1,0 +1,22 @@
+name = "napominalka"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "none"
+
+# Хранилище данных (расписание, отметки, подписки).
+# При деплое через GitHub Actions id подставляется автоматически.
+[[kv_namespaces]]
+binding = "DB"
+id = "__KV_NAMESPACE_ID__"
+
+# Проверять расписание каждую минуту.
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = true
