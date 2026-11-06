@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="theme-color" content="#2f7cf6">
   <title>Таблетки</title>
-  <link rel="manifest" href="__MANIFEST__">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/app.css">
+  <link rel="manifest" id="manifestLink">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <link rel="icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./app.css">
   <style>
     body { font-size: 20px; }
     .greet { font-size: 22px; color: var(--muted); }
@@ -93,34 +93,64 @@
       <div id="checkResult" class="check-result hidden"></div>
     </div>
 
+    <div class="card alert hidden" id="noLink">
+      <h2>Нужна ссылка от родных</h2>
+      <div>Откройте ссылку, которую вам прислали родные, — в ней ключ к вашему расписанию.</div>
+    </div>
+
     <div class="card hidden" id="errorBox">
       <h2>Не получилось загрузить</h2>
       <div class="muted" id="errorText"></div>
-      <button class="btn-primary btn-block big" onclick="load()">Попробовать снова</button>
+      <button class="btn-primary btn-block big" id="retryBtn">Попробовать снова</button>
     </div>
   </div>
 
   <div class="toast hidden" id="toast"></div>
 
-  <script>
-    const token = location.pathname.split("/")[2];
-    const api = (action) => `/api/m/${token}/${action}`;
-    let data = null;
+  <script type="module">
+    import { GitHubStore } from "./js/github.js";
+    import * as core from "./js/core.js";
 
+    // ----- Ключ доступа: из ссылки (?r=…&k=…), затем запоминаем на телефоне -----
+    const params = new URLSearchParams(location.search);
+    let creds = null;
+    try {
+      if (params.get("k") && params.get("r")) {
+        creds = { repo: params.get("r"), token: params.get("k") };
+        localStorage.setItem("napominalka-mom", JSON.stringify(creds));
+      } else {
+        creds = JSON.parse(localStorage.getItem("napominalka-mom") || "null");
+      }
+    } catch {}
+
+    // Манифест с адресом, в котором есть ключ, — чтобы значок на экране «Домой» открывал именно эту страницу.
+    const startUrl = creds ? `${location.origin}${location.pathname}?r=${encodeURIComponent(creds.repo)}&k=${encodeURIComponent(creds.token)}` : location.href;
+    const manifest = {
+      name: "Таблетки", short_name: "Таблетки", start_url: startUrl, scope: new URL("./", location.href).href,
+      display: "standalone", background_color: "#f2f4f8", theme_color: "#2f7cf6", lang: "ru",
+      icons: [
+        { src: new URL("./icon-192.png", location.href).href, sizes: "192x192", type: "image/png" },
+        { src: new URL("./icon-512.png", location.href).href, sizes: "512x512", type: "image/png" },
+      ],
+    };
+    document.getElementById("manifestLink").href = "data:application/manifest+json;charset=utf-8," + encodeURIComponent(JSON.stringify(manifest));
+
+    const store = creds ? new GitHubStore(creds) : null;
+    let state = null;
+    let view = null;
+
+    const $ = (id) => document.getElementById(id);
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const isStandalone = window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
     const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-
-    function esc(s) {
-      return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-    }
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
     function toast(text) {
-      const t = document.getElementById("toast");
+      const t = $("toast");
       t.textContent = text;
       t.classList.remove("hidden");
       clearTimeout(toast.timer);
-      toast.timer = setTimeout(() => t.classList.add("hidden"), 3000);
+      toast.timer = setTimeout(() => t.classList.add("hidden"), 3500);
     }
 
     function greeting(name) {
@@ -128,39 +158,34 @@
       const base = h >= 5 && h < 12 ? "Доброе утро" : h >= 12 && h < 18 ? "Добрый день" : h >= 18 && h < 23 ? "Добрый вечер" : "Доброй ночи";
       return name ? `${base}, ${name}!` : `${base}!`;
     }
-
-    function formatDay(day, tz) {
-      const d = new Date(`${day}T12:00:00Z`);
-      const s = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(d);
+    function formatDay(day) {
+      const s = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
       return s.charAt(0).toUpperCase() + s.slice(1);
     }
-
-    function formatClock(iso, tz) {
+    function formatClock(iso) {
       try {
-        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: tz }).format(new Date(iso));
+        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: state.settings.timezone }).format(new Date(iso));
       } catch {
         return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
       }
     }
-
     const toMinutes = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
     function render() {
-      if (!data) return;
-      document.getElementById("greet").textContent = greeting(data.momName);
-      document.getElementById("date").textContent = formatDay(data.day, data.timezone);
+      if (!state) return;
+      view = core.todayDoses(state);
+      $("greet").textContent = greeting(state.settings.momName);
+      $("date").textContent = formatDay(view.day);
 
-      const active = data.doses.filter((d) => !d.paused);
+      const active = view.doses.filter((d) => !d.paused);
       const taken = active.filter((d) => d.takenAt).length;
-      const summary = document.getElementById("summary");
-      summary.classList.toggle("hidden", active.length === 0);
-      document.getElementById("summaryText").textContent =
-        taken === active.length ? "Все лекарства на сегодня приняты 🎉" : `Принято ${taken} из ${active.length}`;
-      document.getElementById("bar").style.width = active.length ? `${Math.round((taken / active.length) * 100)}%` : "0";
-      document.getElementById("empty").classList.toggle("hidden", data.doses.length > 0);
+      $("summary").classList.toggle("hidden", active.length === 0);
+      $("summaryText").textContent = taken === active.length ? "Все лекарства на сегодня приняты 🎉" : `Принято ${taken} из ${active.length}`;
+      $("bar").style.width = active.length ? `${Math.round((taken / active.length) * 100)}%` : "0";
+      $("empty").classList.toggle("hidden", view.doses.length > 0);
 
-      document.getElementById("list").innerHTML = data.doses.map((d) => {
-        const due = !d.takenAt && !d.paused && toMinutes(d.time) <= data.nowMinutes;
+      $("list").innerHTML = view.doses.map((d) => {
+        const due = !d.takenAt && !d.paused && toMinutes(d.time) <= view.nowMinutes;
         const cls = d.paused ? "paused" : d.takenAt ? "taken" : due ? "due" : "";
         const details = [d.dosage, d.note].filter(Boolean).map((x) => `<div class="detail">${esc(x)}</div>`).join("");
         let actions;
@@ -170,7 +195,7 @@
             <button class="btn-primary btn-block big" data-action="resume" data-med="${esc(d.medId)}">🛒 Купила, напоминать снова</button>`;
         } else if (d.takenAt) {
           actions = `
-            <div class="taken-label">✅ Выпито в ${esc(formatClock(d.takenAt, data.timezone))}</div>
+            <div class="taken-label">✅ Выпито в ${esc(formatClock(d.takenAt))}</div>
             <button class="btn-link small" data-action="undo" data-med="${esc(d.medId)}" data-time="${esc(d.time)}">Отменить отметку</button>`;
         } else {
           actions = `
@@ -193,53 +218,55 @@
       }).join("");
     }
 
-    async function call(action, body) {
-      const res = await fetch(api(action), {
-        method: body ? "POST" : "GET",
-        headers: body ? { "Content-Type": "application/json" } : {},
-        body: body ? JSON.stringify(body) : undefined,
-        cache: "no-store",
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || `Ошибка ${res.status}`);
-      return json;
-    }
-
     async function load() {
+      if (!store) {
+        $("noLink").classList.remove("hidden");
+        $("checkCard").classList.add("hidden");
+        return;
+      }
       try {
-        data = await call("today");
-        document.getElementById("errorBox").classList.add("hidden");
+        const res = await store.read();
+        if (!res.state) throw new Error("Расписание ещё не настроено. Попросите родных открыть страницу настроек.");
+        state = res.state;
+        $("errorBox").classList.add("hidden");
         render();
         await updatePushUi();
         await renderChecklist();
       } catch (e) {
-        document.getElementById("errorText").textContent = e.message;
-        document.getElementById("errorBox").classList.remove("hidden");
+        $("errorText").textContent = e.message;
+        $("errorBox").classList.remove("hidden");
       }
     }
 
-    document.getElementById("list").addEventListener("click", async (e) => {
+    async function change(mutator, message) {
+      const res = await store.update(mutator, message);
+      state = res.state;
+      render();
+    }
+
+    $("retryBtn").addEventListener("click", load);
+
+    $("list").addEventListener("click", async (e) => {
       const btn = e.target.closest("button[data-action]");
-      if (!btn) return;
+      if (!btn || !state) return;
       const { action, med, time, name } = btn.dataset;
       try {
         btn.disabled = true;
         if (action === "take") {
-          data = await call("taken", { medId: med, time, day: data.day });
+          await change((s) => core.setTaken(s, med, time, view.day, true), "Мама: выпила");
           if (navigator.vibrate) navigator.vibrate(50);
           toast("Отлично! Отмечено ✅");
         } else if (action === "undo") {
           if (!confirm("Отменить отметку о приёме?")) return;
-          data = await call("taken", { medId: med, time, day: data.day, undo: true });
+          await change((s) => core.setTaken(s, med, time, view.day, false), "Мама: отменила отметку");
         } else if (action === "out") {
           if (!confirm(`Таблетки «${name}» закончились?\n\nНапоминания о них остановятся, а родные получат сообщение.`)) return;
-          data = await call("pause", { medId: med, paused: true });
+          await change((s) => core.setPaused(s, med, true, "mom"), "Мама: закончились таблетки");
           toast("Напоминания на паузе. Родные узнают.");
         } else if (action === "resume") {
-          data = await call("pause", { medId: med, paused: false });
+          await change((s) => core.setPaused(s, med, false, "mom"), "Мама: купила таблетки");
           toast("Напоминания снова включены 🔔");
         }
-        render();
       } catch (err) {
         toast(err.message);
       } finally {
@@ -247,6 +274,7 @@
       }
     });
 
+    // ----- Push-уведомления -----
     function urlB64ToUint8Array(base64) {
       const padding = "=".repeat((4 - (base64.length % 4)) % 4);
       const raw = atob((base64 + padding).replace(/-/g, "+").replace(/_/g, "/"));
@@ -256,30 +284,31 @@
     let registration = null;
 
     async function updatePushUi() {
-      const install = document.getElementById("install");
-      const enable = document.getElementById("enable");
       if (isIOS && !isStandalone) {
-        install.classList.remove("hidden");
-        enable.classList.add("hidden");
+        $("install").classList.remove("hidden");
+        $("enable").classList.add("hidden");
         return;
       }
-      install.classList.add("hidden");
-      if (!pushSupported || !registration || !data?.vapidPublicKey) {
-        enable.classList.add("hidden");
+      $("install").classList.add("hidden");
+      if (!pushSupported || !registration || !state?.vapid) {
+        $("enable").classList.add("hidden");
         return;
       }
       const sub = await registration.pushManager.getSubscription();
+      const known = sub && state.subscriptions.some((s) => s.subscription.endpoint === sub.endpoint);
       if (sub && Notification.permission === "granted") {
-        enable.classList.add("hidden");
-        // Каждый раз напоминаем серверу о подписке — на случай, если он её потерял.
-        call("subscribe", { subscription: sub.toJSON() }).catch(() => {});
+        $("enable").classList.add("hidden");
+        if (!known) {
+          // Подписка есть на телефоне, но её нет в данных — сохраняем снова.
+          change((s) => void core.addSubscription(s, "mom", sub.toJSON(), navigator.userAgent), "Мама: телефон подключён").catch(() => {});
+        }
       } else {
-        enable.classList.remove("hidden");
+        $("enable").classList.remove("hidden");
       }
     }
 
-    document.getElementById("enableBtn").addEventListener("click", async () => {
-      const btn = document.getElementById("enableBtn");
+    $("enableBtn").addEventListener("click", async () => {
+      const btn = $("enableBtn");
       btn.disabled = true;
       try {
         const permission = await Notification.requestPermission();
@@ -289,10 +318,8 @@
         }
         const reg = registration || (await navigator.serviceWorker.ready);
         let sub = await reg.pushManager.getSubscription();
-        if (!sub) {
-          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(data.vapidPublicKey) });
-        }
-        await call("subscribe", { subscription: sub.toJSON() });
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(state.vapid.publicKey) });
+        await change((s) => void core.addSubscription(s, "mom", sub.toJSON(), navigator.userAgent), "Мама: телефон подключён");
         toast("Напоминания включены 🔔");
         await updatePushUi();
         await renderChecklist();
@@ -307,41 +334,41 @@
     async function checkState() {
       const permission = pushSupported ? Notification.permission : "unsupported";
       const sub = pushSupported && registration ? await registration.pushManager.getSubscription() : null;
-      return {
-        homeScreen: !isIOS || isStandalone,
-        permission,
-        subscribed: Boolean(sub),
-        sub,
-      };
+      return { homeScreen: !isIOS || isStandalone, permission, sub };
     }
 
     async function renderChecklist() {
       const s = await checkState();
       const line = (ok, text) => `<li>${ok ? "✅" : "❌"} ${text}</li>`;
-      document.getElementById("checklist").innerHTML = [
+      $("checklist").innerHTML = [
         isIOS ? line(s.homeScreen, s.homeScreen ? "Открыто с экрана «Домой»" : "Не открыто с экрана «Домой»") : "",
         line(s.permission === "granted", s.permission === "granted" ? "Уведомления разрешены" : s.permission === "denied" ? "Уведомления запрещены" : s.permission === "unsupported" ? "Браузер не поддерживает уведомления" : "Уведомления ещё не разрешены"),
-        line(s.subscribed, s.subscribed ? "Телефон подключён к напоминаниям" : "Телефон ещё не подключён"),
+        line(Boolean(s.sub), s.sub ? "Телефон подключён к напоминаниям" : "Телефон ещё не подключён"),
       ].join("");
     }
 
     function showCheckResult(ok, text) {
-      const el = document.getElementById("checkResult");
+      const el = $("checkResult");
       el.className = `check-result ${ok ? "ok" : "bad"}`;
       el.textContent = text;
     }
 
-    document.getElementById("checkBtn").addEventListener("click", async () => {
-      const btn = document.getElementById("checkBtn");
+    $("checkBtn").addEventListener("click", async () => {
+      const btn = $("checkBtn");
       btn.disabled = true;
       try {
         const s = await checkState();
         if (!s.homeScreen) return showCheckResult(false, "Сначала добавьте сайт на экран «Домой» (инструкция вверху) и откройте его оттуда.");
         if (s.permission === "unsupported") return showCheckResult(false, "Этот браузер не умеет показывать уведомления. Нужен iPhone с iOS 16.4 или новее.");
         if (s.permission === "denied") return showCheckResult(false, "Уведомления запрещены. Включите: Настройки → Уведомления → Таблетки → Допуск уведомлений.");
-        if (!s.subscribed) return showCheckResult(false, "Сначала нажмите «Включить напоминания» вверху страницы.");
-        await call("test", { endpoint: s.sub.endpoint });
-        showCheckResult(true, "Уведомление отправлено! Оно должно появиться через несколько секунд. Если появилось — всё работает ✅");
+        if (!s.sub) return showCheckResult(false, "Сначала нажмите «Включить напоминания» вверху страницы.");
+        // 1) Сразу показываем уведомление с самого телефона.
+        await registration.showNotification("🔔 Уведомления на этом телефоне работают", {
+          body: "Сейчас проверим доставку с сервера.", icon: "./icon-192.png", tag: "local-test",
+        });
+        // 2) Просим сервер прислать уведомление — так же, как приходят напоминания.
+        await change((st) => core.queueTest(st, { role: "mom", endpoint: s.sub.endpoint }), "Мама: проверка уведомлений");
+        showCheckResult(true, "Первое уведомление — с телефона — должно было появиться сразу. Второе, «✅ Проверка: всё работает!», придёт с сервера в течение 5–15 минут. Если оба пришли — всё работает.");
       } catch (e) {
         showCheckResult(false, e.message);
       } finally {
@@ -353,10 +380,8 @@
     async function init() {
       if ("serviceWorker" in navigator) {
         try {
-          registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-          navigator.serviceWorker.addEventListener("message", (e) => {
-            if (e.data?.type === "refresh") load();
-          });
+          registration = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+          navigator.serviceWorker.addEventListener("message", (e) => e.data?.type === "refresh" && load());
         } catch (e) {
           console.warn(e);
         }
@@ -364,9 +389,7 @@
       await load();
     }
 
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") load();
-    });
+    document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && load());
     setInterval(() => document.visibilityState === "visible" && load(), 60000);
     init();
   </script>

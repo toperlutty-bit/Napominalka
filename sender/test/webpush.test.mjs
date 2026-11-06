@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import ece from "http_ece";
-import { encryptPayload, generateVapidKeys, vapidAuthHeader, sendPush, b64urlDecode, b64urlEncode } from "../src/webpush.js";
+import { encryptPayload, generateVapidKeys, vapidAuthHeader, sendPush, b64urlDecode, b64urlEncode } from "../../web/js/webpush.js";
 
 // Имитируем браузер: ключи подписки.
 function makeBrowserSubscription() {

@@ -7,9 +7,9 @@
   <meta name="apple-mobile-web-app-title" content="Напоминалка">
   <meta name="theme-color" content="#2f7cf6">
   <title>Напоминалка — настройка</title>
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/app.css">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <link rel="icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./app.css">
   <style>
     .med { border-top: 1px solid var(--line); padding: 14px 0; }
     .med:first-of-type { border-top: 0; }
@@ -37,30 +37,40 @@
     .steps { padding-left: 22px; margin: 8px 0; }
     .steps li { margin: 6px 0; }
   </style>
+
+  <style>
+    .connect-steps { padding-left: 22px; }
+    .connect-steps li { margin: 10px 0; }
+    .warn { background: #fff4e5; color: #6b3a00; border-radius: 12px; padding: 10px 12px; font-size: 15px; }
+    @media (prefers-color-scheme: dark) { .warn { background: #3a2a14; color: #ffd8a8; } }
+  </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- Первый запуск -->
-    <section id="setup" class="hidden">
+    <!-- Подключение к данным -->
+    <section id="connect" class="hidden">
       <h1>💊 Напоминалка</h1>
-      <p class="muted">Сайт сам присылает маме напоминания выпить таблетки по графику. Придумайте пароль для этой страницы настроек.</p>
+      <p class="muted">Сайт присылает маме напоминания выпить таблетки по графику. Расписание хранится в вашем <b>приватном</b> репозитории GitHub. Настройка — один раз:</p>
       <div class="card">
-        <form id="setupForm">
-          <label class="field"><span>Пароль (не короче 6 символов)</span><input type="password" name="password" autocomplete="new-password" required minlength="6"></label>
-          <label class="field"><span>Повторите пароль</span><input type="password" name="password2" autocomplete="new-password" required minlength="6"></label>
-          <button class="btn-primary btn-block">Начать</button>
+        <ol class="connect-steps">
+          <li><a id="newRepoLink" target="_blank" rel="noopener">Создайте приватный репозиторий</a> с именем <b>napominalka-data</b> (галочка <b>Private</b>, остальное по умолчанию).</li>
+          <li><a id="newTokenLink" target="_blank" rel="noopener">Создайте ключ доступа</a> (Fine-grained token):
+            <ul class="small">
+              <li>Expiration — <b>No expiration</b> (или 1 год);</li>
+              <li>Repository access — <b>Only select repositories</b> → <b>napominalka-data</b>;</li>
+              <li>Permissions → Repository permissions → <b>Contents: Read and write</b>;</li>
+              <li><b>Generate token</b> и скопируйте его.</li>
+            </ul>
+          </li>
+          <li>В репозитории <b>Napominalka</b>: <a id="secretLink" target="_blank" rel="noopener">Settings → Secrets → Actions</a> → <b>New repository secret</b>, имя <b>DATA_TOKEN</b>, значение — тот же ключ. Это нужно, чтобы рассылка сама читала расписание.</li>
+          <li>Вставьте ключ сюда:</li>
+        </ol>
+        <form id="connectForm">
+          <label class="field"><span>Репозиторий с данными</span><input name="repo" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label class="field"><span>Ключ доступа (github_pat_…)</span><input name="token" type="password" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <button class="btn-primary btn-block">Подключить</button>
         </form>
-      </div>
-    </section>
-
-    <!-- Вход -->
-    <section id="login" class="hidden">
-      <h1>💊 Напоминалка</h1>
-      <div class="card">
-        <form id="loginForm">
-          <label class="field"><span>Пароль</span><input type="password" name="password" autocomplete="current-password" required></label>
-          <button class="btn-primary btn-block">Войти</button>
-        </form>
+        <p class="muted small">Ключ хранится только в этом браузере.</p>
       </div>
     </section>
 
@@ -80,9 +90,7 @@
       </div>
 
       <div class="card">
-        <div class="row" style="margin-bottom:6px">
-          <h2 class="grow" style="margin:0">Лекарства и график</h2>
-        </div>
+        <h2>Лекарства и график</h2>
         <div id="meds"></div>
         <button class="btn-primary btn-block" id="addMedBtn" style="margin-top:12px">＋ Добавить лекарство</button>
       </div>
@@ -90,12 +98,13 @@
       <div class="card">
         <h2>📱 Телефон мамы</h2>
         <ol class="steps">
-          <li>Отправьте маме ссылку ниже (в WhatsApp, СМС) и откройте её на iPhone в <b>Safari</b>.</li>
+          <li>Отправьте маме ссылку ниже (в WhatsApp, Telegram, СМС) и откройте её на iPhone в <b>Safari</b>.</li>
           <li>Нажмите «Поделиться» → «На экран „Домой“» → «Добавить».</li>
           <li>Откройте «Таблетки» с экрана «Домой» и нажмите «Включить напоминания» → «Разрешить».</li>
-          <li>Нажмите здесь «Проверить» — маме должно прийти уведомление.</li>
+          <li>Там же внизу нажмите «Проверить уведомления».</li>
         </ol>
-        <div class="link-box" id="momLink"></div>
+        <div class="warn">🔒 В ссылке — ключ к расписанию. Отправьте её только маме.</div>
+        <div class="link-box" id="momLink" style="margin-top:10px"></div>
         <div class="row" style="margin-top:10px">
           <button id="copyLinkBtn">📋 Скопировать</button>
           <button id="shareLinkBtn" class="hidden">📤 Отправить</button>
@@ -103,7 +112,6 @@
         </div>
         <h3 style="margin-top:18px">Устройства мамы</h3>
         <div id="momDevices"></div>
-        <button class="btn-link small" id="resetLinkBtn">Сделать новую ссылку (старая перестанет работать)</button>
       </div>
 
       <div class="card">
@@ -114,6 +122,12 @@
           <button class="btn-primary" id="subscribeAdminBtn">Получать на этом устройстве</button>
           <button id="testAdminBtn">Проверить</button>
         </div>
+      </div>
+
+      <div class="card">
+        <h2>⏱ Рассылка</h2>
+        <p class="muted small" style="margin-top:0">Напоминания отправляет GitHub Actions каждые 5 минут, поэтому они могут приходить с опозданием до 5–15 минут. Проверочные уведомления тоже приходят при следующем запуске.</p>
+        <a class="btn" id="actionsLink" target="_blank" rel="noopener">Открыть журнал рассылки</a>
       </div>
 
       <div class="card">
@@ -138,19 +152,12 @@
           <label class="switch"><input type="checkbox" name="notifyMissed"> <span>Сообщать мне, если приём так и не отмечен</span></label>
           <button class="btn-primary btn-block">Сохранить настройки</button>
         </form>
+
       </div>
 
       <div class="card">
         <h2>📅 История за неделю</h2>
         <div id="history"></div>
-      </div>
-
-      <div class="card">
-        <h2>🔑 Пароль</h2>
-        <form id="passwordForm" class="row">
-          <input class="grow" type="password" name="password" placeholder="Новый пароль" minlength="6" autocomplete="new-password" required>
-          <button>Сменить</button>
-        </form>
       </div>
     </section>
   </div>
@@ -197,9 +204,14 @@
     </form>
   </dialog>
 
+
   <div class="toast hidden" id="toast"></div>
 
-  <script>
+  <script type="module">
+    import { GitHubStore } from "./js/github.js";
+    import * as core from "./js/core.js";
+    import { generateVapidKeys } from "./js/webpush.js";
+
     const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
     const TIMEZONES = [
       ["Europe/Kaliningrad", "Калининград (МСК−1)"], ["Europe/Moscow", "Москва (МСК)"], ["Europe/Samara", "Самара (МСК+1)"],
@@ -211,52 +223,112 @@
       ["Europe/London", "Лондон"], ["America/New_York", "Нью-Йорк"], ["Asia/Jerusalem", "Иерусалим"],
     ];
 
-    let view = null;
-    let editing = null;
-
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+    // Владелец и репозиторий сайта — из адреса вида https://владелец.github.io/Napominalka/
+    const owner = location.hostname.endsWith(".github.io") ? location.hostname.split(".")[0] : "toperlutty-bit";
+    const siteRepo = location.hostname.endsWith(".github.io") ? location.pathname.split("/")[1] || "Napominalka" : "Napominalka";
+
+    let store = null;
+    let state = null;
+    let editing = null;
 
     function toast(text) {
       const t = $("toast");
       t.textContent = text;
       t.classList.remove("hidden");
       clearTimeout(toast.timer);
-      toast.timer = setTimeout(() => t.classList.add("hidden"), 3500);
-    }
-
-    async function api(path, method = "GET", body) {
-      const res = await fetch(`/api/admin/${path}`, {
-        method,
-        headers: body !== undefined ? { "Content-Type": "application/json" } : {},
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401 && path !== "login") {
-        show("login");
-        throw new Error("Нужно войти");
-      }
-      if (!res.ok) throw new Error(data.error || `Ошибка ${res.status}`);
-      return data;
+      toast.timer = setTimeout(() => t.classList.add("hidden"), 4000);
     }
 
     function show(section) {
-      for (const id of ["setup", "login", "main"]) $(id).classList.toggle("hidden", id !== section);
+      for (const id of ["connect", "main"]) $(id).classList.toggle("hidden", id !== section);
     }
 
+    // ----- Подключение -----
+    $("newRepoLink").href = "https://github.com/new?name=napominalka-data&visibility=private&description=" + encodeURIComponent("Данные напоминалки о таблетках");
+    $("newTokenLink").href = "https://github.com/settings/personal-access-tokens/new?name=napominalka&description=" + encodeURIComponent("Напоминалка о таблетках") + "&target_name=" + owner + "&expires_in=none&contents=write";
+    $("secretLink").href = `https://github.com/${owner}/${siteRepo}/settings/secrets/actions/new`;
+    $("actionsLink").href = `https://github.com/${owner}/${siteRepo}/actions/workflows/reminders.yml`;
+    $("connectForm").repo.value = `${owner}/napominalka-data`;
+
+    function saveCreds(c) {
+      try { c ? localStorage.setItem("napominalka-admin", JSON.stringify(c)) : localStorage.removeItem("napominalka-admin"); } catch {}
+    }
+    function loadCreds() {
+      try { return JSON.parse(localStorage.getItem("napominalka-admin") || "null"); } catch { return null; }
+    }
+
+    async function connect(creds, { initIfMissing }) {
+      store = new GitHubStore(creds);
+      const access = await store.checkAccess();
+      let { state: s } = await store.read();
+      if (!s) {
+        if (!initIfMissing) throw new Error("Данные не найдены");
+        s = core.defaultState();
+        s.vapid = await generateVapidKeys();
+        await store.write(s, null, "Создать данные напоминалки");
+        s = (await store.read()).state;
+      } else if (!s.vapid) {
+        await store.update(async (st) => { st.vapid ||= await generateVapidKeys(); }, "Создать ключи уведомлений");
+        s = (await store.read()).state;
+      }
+      state = s;
+      saveCreds(creds);
+      show("main");
+      render();
+      if (!access.private) toast("⚠️ Репозиторий с данными публичный! Сделайте его приватным в настройках репозитория.");
+    }
+
+    $("connectForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const btn = f.querySelector("button");
+      btn.disabled = true;
+      try {
+        await connect({ repo: f.repo.value.trim(), token: f.token.value.trim() }, { initIfMissing: true });
+        f.token.value = "";
+        toast("Готово! Добавьте лекарства.");
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    $("logoutBtn").addEventListener("click", () => {
+      if (!confirm("Выйти? Ключ будет удалён из этого браузера (данные останутся).")) return;
+      saveCreds(null);
+      store = null;
+      state = null;
+      show("connect");
+    });
+
+    async function change(mutator, message) {
+      const res = await store.update(mutator, message);
+      state = res.state;
+      render();
+      return res.result;
+    }
+
+    async function refresh() {
+      if (!store) return;
+      state = (await store.read()).state;
+      render();
+    }
+
+    // ----- Отрисовка -----
     function fmtDay(day) {
       const s = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
       return s.charAt(0).toUpperCase() + s.slice(1);
     }
     function fmtClock(iso) {
       try {
-        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: view.settings.timezone }).format(new Date(iso));
+        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: state.settings.timezone }).format(new Date(iso));
       } catch { return ""; }
     }
-    const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-
     function doseStatus(d, isPast) {
       if (d.paused) return '<span class="badge badge-red">закончились</span>';
       if (d.takenAt) return `<span class="badge badge-green">✅ ${esc(fmtClock(d.takenAt))}</span>`;
@@ -264,30 +336,34 @@
       return '<span class="badge">ждём</span>';
     }
 
-    function render() {
-      const v = view;
-      $("todayTitle").textContent = fmtDay(v.today.day);
+    function momUrl() {
+      const base = new URL("./mom.html", location.href);
+      base.search = new URLSearchParams({ r: store.repo, k: store.token }).toString();
+      return base.href;
+    }
 
-      // Предупреждения
+    function render() {
+      const s = state;
+      const today = core.todayDoses(s);
+      $("todayTitle").textContent = fmtDay(today.day);
+
       const alerts = [];
-      const paused = v.medicines.filter((m) => m.paused);
-      for (const m of paused) {
+      for (const m of s.medicines.filter((x) => x.paused)) {
         alerts.push(`<div class="row" style="margin:6px 0"><div class="grow">⛔ <b>${esc(m.name)}</b> — закончились${m.pausedBy === "mom" ? " (отметила мама)" : ""}. Напоминания на паузе.</div>
           <button class="btn-green" data-resume="${esc(m.id)}">Купили</button></div>`);
       }
-      if (!v.subscriptions.some((s) => s.role === "mom")) alerts.push("<div>📱 Мамин телефон ещё не подключён — см. раздел «Телефон мамы».</div>");
-      if (!v.medicines.length) alerts.push("<div>💊 Добавьте лекарства и время приёма.</div>");
+      if (!s.subscriptions.some((x) => x.role === "mom")) alerts.push("<div>📱 Мамин телефон ещё не подключён — см. раздел «Телефон мамы».</div>");
+      if (!s.medicines.length) alerts.push("<div>💊 Добавьте лекарства и время приёма.</div>");
+      if (s.outbox.length) alerts.push(`<div class="muted small">⏳ В очереди на отправку: ${s.outbox.length} (уйдёт при следующем запуске рассылки).</div>`);
       $("alerts").innerHTML = alerts.join("");
       $("alerts").classList.toggle("hidden", alerts.length === 0);
 
-      // Сегодня
-      $("today").innerHTML = v.today.doses.length
-        ? v.today.doses.map((d) => `<div class="dose-row"><span class="dose-time">${esc(d.time)}</span><span class="dot" style="background:${esc(d.color)}"></span><span class="grow">${esc(d.name)}</span>${doseStatus(d, toMin(d.time) <= v.today.nowMinutes)}</div>`).join("")
+      $("today").innerHTML = today.doses.length
+        ? today.doses.map((d) => `<div class="dose-row"><span class="dose-time">${esc(d.time)}</span><span class="dot" style="background:${esc(d.color)}"></span><span class="grow">${esc(d.name)}</span>${doseStatus(d, toMin(d.time) <= today.nowMinutes)}</div>`).join("")
         : '<div class="muted">На сегодня приёмов нет.</div>';
 
-      // Лекарства
-      $("meds").innerHTML = v.medicines.length
-        ? v.medicines.map((m) => `
+      $("meds").innerHTML = s.medicines.length
+        ? s.medicines.map((m) => `
           <div class="med">
             <div class="row"><span class="dot" style="background:${esc(m.color)}"></span><span class="med-name grow">${esc(m.name)}</span>
               ${m.paused ? '<span class="badge badge-red">закончились</span>' : ""}</div>
@@ -302,32 +378,27 @@
           </div>`).join("")
         : '<div class="muted">Пока нет лекарств.</div>';
 
-      // Ссылка
-      $("momLink").textContent = v.momUrl || "";
-      const momDevs = v.subscriptions.filter((s) => s.role === "mom");
-      const adminDevs = v.subscriptions.filter((s) => s.role === "admin");
+      $("momLink").textContent = momUrl();
       const devList = (list) => list.length
-        ? list.map((s) => `<div class="dose-row"><span class="grow">${esc(s.label)} <span class="muted small">с ${esc(new Date(s.createdAt).toLocaleDateString("ru-RU"))}</span></span><button class="btn-link small" data-unsub="${esc(s.id)}">Удалить</button></div>`).join("")
+        ? list.map((x) => `<div class="dose-row"><span class="grow">${esc(x.label)} <span class="muted small">с ${esc(new Date(x.createdAt).toLocaleDateString("ru-RU"))}</span></span><button class="btn-link small" data-unsub="${esc(x.id)}">Удалить</button></div>`).join("")
         : '<div class="muted small">Нет подключённых устройств.</div>';
-      $("momDevices").innerHTML = devList(momDevs);
-      $("adminDevices").innerHTML = devList(adminDevs);
+      $("momDevices").innerHTML = devList(s.subscriptions.filter((x) => x.role === "mom"));
+      $("adminDevices").innerHTML = devList(s.subscriptions.filter((x) => x.role === "admin"));
 
-      // Настройки
       const f = $("settingsForm");
-      const tz = v.settings.timezone;
+      const tz = s.settings.timezone;
       const options = TIMEZONES.some(([id]) => id === tz) ? TIMEZONES : [[tz, tz], ...TIMEZONES];
       $("tzSelect").innerHTML = options.map(([id, label]) => `<option value="${esc(id)}">${esc(label)}</option>`).join("");
       if (document.activeElement?.form !== f) {
-        f.momName.value = v.settings.momName || "";
+        f.momName.value = s.settings.momName || "";
         f.timezone.value = tz;
-        f.repeatEnabled.checked = v.settings.repeatEnabled;
-        f.repeatInterval.value = String(v.settings.repeatInterval);
-        f.repeatCount.value = String(v.settings.repeatCount);
-        f.notifyMissed.checked = v.settings.notifyMissed;
+        f.repeatEnabled.checked = s.settings.repeatEnabled;
+        f.repeatInterval.value = String(s.settings.repeatInterval);
+        f.repeatCount.value = String(s.settings.repeatCount);
+        f.notifyMissed.checked = s.settings.notifyMissed;
       }
 
-      // История
-      $("history").innerHTML = v.history.map((h, i) => {
+      $("history").innerHTML = core.history(s).map((h, i) => {
         const doses = h.doses.filter((d) => !d.paused);
         if (!doses.length) return "";
         const taken = doses.filter((d) => d.takenAt).length;
@@ -338,66 +409,29 @@
       }).join("") || '<div class="muted">Пока пусто.</div>';
     }
 
-    async function refresh() {
-      view = await api("state");
-      render();
-    }
-
-    // ----- Вход -----
-    $("setupForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const f = e.target;
-      if (f.password.value !== f.password2.value) return toast("Пароли не совпадают");
-      try {
-        await api("setup", "POST", { password: f.password.value });
-        show("main");
-        await refresh();
-        toast("Готово! Добавьте лекарства.");
-      } catch (err) { toast(err.message); }
-    });
-
-    $("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      try {
-        await api("login", "POST", { password: e.target.password.value });
-        e.target.reset();
-        show("main");
-        await refresh();
-      } catch (err) { toast(err.message); }
-    });
-
-    $("logoutBtn").addEventListener("click", async () => {
-      await api("logout", "POST", {}).catch(() => {});
-      show("login");
-    });
-
-    // ----- Действия со списками -----
+    // ----- Действия -----
     document.addEventListener("click", async (e) => {
       const b = e.target.closest("button");
-      if (!b) return;
+      if (!b || !state) return;
       try {
-        if (b.dataset.edit) openMed(view.medicines.find((m) => m.id === b.dataset.edit));
+        if (b.dataset.edit) openMed(state.medicines.find((m) => m.id === b.dataset.edit));
         else if (b.dataset.pause) {
-          const m = view.medicines.find((x) => x.id === b.dataset.pause);
+          const m = state.medicines.find((x) => x.id === b.dataset.pause);
           if (!confirm(`Таблетки «${m.name}» закончились? Напоминания о них встанут на паузу.`)) return;
-          view = await api(`medicines/${b.dataset.pause}/pause`, "POST", { paused: true });
-          render();
+          await change((s) => core.setPaused(s, b.dataset.pause, true, "admin"), "Закончились таблетки");
           toast("Напоминания на паузе");
         } else if (b.dataset.resume) {
-          view = await api(`medicines/${b.dataset.resume}/pause`, "POST", { paused: false });
-          render();
+          await change((s) => core.setPaused(s, b.dataset.resume, false, "admin"), "Купили таблетки");
           toast("Напоминания снова включены 🔔");
         } else if (b.dataset.unsub) {
           if (!confirm("Удалить это устройство? На него перестанут приходить уведомления.")) return;
-          view = await api(`subscriptions/${b.dataset.unsub}`, "DELETE");
-          render();
+          await change((s) => core.removeSubscription(s, b.dataset.unsub), "Удалить устройство");
         }
       } catch (err) { toast(err.message); }
     });
 
     $("addMedBtn").addEventListener("click", () => openMed(null));
 
-    // ----- Диалог лекарства -----
     function addTimeRow(value) {
       const row = document.createElement("div");
       row.className = "time-input";
@@ -419,15 +453,14 @@
       (med?.times?.length ? med.times : ["09:00"]).forEach(addTimeRow);
       const days = med?.days?.length ? med.days : [1, 2, 3, 4, 5, 6, 7];
       $("daysBox").innerHTML = WEEKDAYS.map((d, i) => `<label><input type="checkbox" value="${i + 1}" ${days.includes(i + 1) ? "checked" : ""}>${d}</label>`).join("");
-      const color = med?.color || view.colors[view.medicines.length % view.colors.length];
-      $("colorsBox").innerHTML = view.colors.map((c) => `<button type="button" class="color-opt ${c === color ? "sel" : ""}" data-color="${c}" style="background:${c}" aria-label="Цвет"></button>`).join("");
+      const color = med?.color || core.COLORS[state.medicines.length % core.COLORS.length];
+      $("colorsBox").innerHTML = core.COLORS.map((c) => `<button type="button" class="color-opt ${c === color ? "sel" : ""}" data-color="${c}" style="background:${c}" aria-label="Цвет"></button>`).join("");
       $("deleteMedBtn").classList.toggle("hidden", !med);
       $("medDialog").showModal();
     }
 
     $("addTimeBtn").addEventListener("click", () => {
-      const inputs = [...$("timesBox").querySelectorAll("input")];
-      const last = inputs.map((i) => i.value).filter(Boolean).sort().pop();
+      const last = [...$("timesBox").querySelectorAll("input")].map((i) => i.value).filter(Boolean).sort().pop();
       let next = "20:00";
       if (last) {
         const m = Math.min(toMin(last) + 4 * 60, 23 * 60);
@@ -438,8 +471,7 @@
 
     $("colorsBox").addEventListener("click", (e) => {
       const b = e.target.closest(".color-opt");
-      if (!b) return;
-      $("colorsBox").querySelectorAll(".color-opt").forEach((x) => x.classList.toggle("sel", x === b));
+      if (b) $("colorsBox").querySelectorAll(".color-opt").forEach((x) => x.classList.toggle("sel", x === b));
     });
 
     document.querySelectorAll(".chips").forEach((box) => {
@@ -454,9 +486,8 @@
     $("deleteMedBtn").addEventListener("click", async () => {
       if (!editing || !confirm(`Удалить «${editing.name}»?`)) return;
       try {
-        view = await api(`medicines/${editing.id}`, "DELETE");
+        await change((s) => core.deleteMedicine(s, editing.id), "Удалить лекарство");
         $("medDialog").close();
-        render();
       } catch (err) { toast(err.message); }
     });
 
@@ -468,73 +499,57 @@
       const days = [...$("daysBox").querySelectorAll("input:checked")].map((i) => Number(i.value));
       if (!days.length) return toast("Выберите хотя бы один день");
       const color = $("colorsBox").querySelector(".sel")?.dataset.color;
+      const btn = $("saveMedBtn");
+      btn.disabled = true;
       try {
-        view = await api("medicines", "POST", { id: f.id.value || undefined, name: f.name.value, dosage: f.dosage.value, note: f.note.value, times, days, color });
+        await change((s) => void core.saveMedicine(s, { id: f.id.value || undefined, name: f.name.value, dosage: f.dosage.value, note: f.note.value, times, days, color }), "Сохранить лекарство");
         $("medDialog").close();
-        render();
         toast("Сохранено. Напоминания придут по графику.");
-      } catch (err) { toast(err.message); }
+      } catch (err) { toast(err.message); } finally { btn.disabled = false; }
     });
 
-    // ----- Настройки -----
     $("settingsForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const f = e.target;
       try {
-        view = await api("settings", "PUT", {
-          momName: f.momName.value,
-          timezone: f.timezone.value,
-          repeatEnabled: f.repeatEnabled.checked,
-          repeatInterval: Number(f.repeatInterval.value),
-          repeatCount: Number(f.repeatCount.value),
-          notifyMissed: f.notifyMissed.checked,
-        });
+        await change((s) => {
+          s.settings.momName = core.cleanString(f.momName.value, 40);
+          s.settings.timezone = f.timezone.value;
+          s.settings.repeatEnabled = f.repeatEnabled.checked;
+          s.settings.repeatInterval = Math.min(120, Math.max(5, Number(f.repeatInterval.value) || 15));
+          s.settings.repeatCount = Math.min(5, Math.max(1, Number(f.repeatCount.value) || 2));
+          s.settings.notifyMissed = f.notifyMissed.checked;
+        }, "Настройки");
         f.querySelector("button").blur();
-        render();
         toast("Настройки сохранены");
       } catch (err) { toast(err.message); }
     });
 
-    $("passwordForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      try {
-        await api("password", "POST", { password: e.target.password.value });
-        e.target.reset();
-        toast("Пароль изменён");
-      } catch (err) { toast(err.message); }
-    });
-
-    // ----- Ссылка для мамы -----
+    // ----- Ссылка для мамы и проверка -----
     $("copyLinkBtn").addEventListener("click", async () => {
       try {
-        await navigator.clipboard.writeText(view.momUrl);
+        await navigator.clipboard.writeText(momUrl());
         toast("Ссылка скопирована");
       } catch {
-        prompt("Скопируйте ссылку:", view.momUrl);
+        prompt("Скопируйте ссылку:", momUrl());
       }
     });
     if (navigator.share) {
       $("shareLinkBtn").classList.remove("hidden");
-      $("shareLinkBtn").addEventListener("click", () => navigator.share({ title: "Таблетки", text: "Открой эту ссылку в Safari и добавь на экран «Домой»", url: view.momUrl }).catch(() => {}));
+      $("shareLinkBtn").addEventListener("click", () => navigator.share({ title: "Таблетки", text: "Открой эту ссылку в Safari и добавь на экран «Домой»", url: momUrl() }).catch(() => {}));
     }
 
     async function sendTest(role) {
+      if (!state.subscriptions.some((x) => x.role === role)) {
+        return toast(role === "mom" ? "Мамин телефон ещё не подключён" : "Это устройство ещё не подключено");
+      }
       try {
-        const r = await api("test", "POST", { role });
-        view = r.view;
-        render();
-        if (!r.total) toast(role === "mom" ? "Мамин телефон ещё не подключён" : "Это устройство ещё не подключено");
-        else if (r.sent) toast(`Отправлено на ${r.sent} из ${r.total} устройств`);
-        else toast("Не удалось отправить. Переподключите устройство.");
+        await change((s) => core.queueTest(s, { role }), "Проверка уведомлений");
+        toast("Поставлено в очередь. Уведомление придёт при следующем запуске рассылки (до 5–15 минут).");
       } catch (err) { toast(err.message); }
     }
     $("testMomBtn").addEventListener("click", () => sendTest("mom"));
     $("testAdminBtn").addEventListener("click", () => sendTest("admin"));
-
-    $("resetLinkBtn").addEventListener("click", async () => {
-      if (!confirm("Сделать новую ссылку? Маме нужно будет заново добавить сайт на экран «Домой».")) return;
-      try { view = await api("reset-mom-link", "POST", {}); render(); toast("Новая ссылка готова"); } catch (err) { toast(err.message); }
-    });
 
     // ----- Уведомления для родственника -----
     function urlB64ToUint8Array(base64) {
@@ -550,29 +565,33 @@
       try {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") return toast("Уведомления не разрешены");
-        const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
         await navigator.serviceWorker.ready;
         let sub = await reg.pushManager.getSubscription();
-        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(view.vapidPublicKey) });
-        view = await api("subscribe", "POST", { subscription: sub.toJSON() });
-        render();
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(state.vapid.publicKey) });
+        await change((s) => void core.addSubscription(s, "admin", sub.toJSON(), navigator.userAgent), "Подключить устройство родственника");
         toast("Готово! Уведомления будут приходить сюда.");
       } catch (err) { toast("Не получилось: " + err.message); }
     });
 
     // ----- Старт -----
     (async () => {
-      try {
-        const status = await api("status");
-        if (status.needsSetup) show("setup");
-        else if (status.loggedIn) { show("main"); await refresh(); }
-        else show("login");
-      } catch (err) { toast(err.message); }
-      if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+      const creds = loadCreds();
+      if (creds) {
+        try {
+          await connect(creds, { initIfMissing: false });
+        } catch (err) {
+          show("connect");
+          toast(err.message);
+        }
+      } else {
+        show("connect");
+      }
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(() => {});
     })();
 
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && view && !$("medDialog").open) refresh().catch(() => {});
+      if (document.visibilityState === "visible" && store && !$("medDialog").open) refresh().catch(() => {});
     });
   </script>
 </body>

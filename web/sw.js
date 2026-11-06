@@ -17,9 +17,9 @@ self.addEventListener("push", (event) => {
       tag: data.tag || undefined,
       renotify: Boolean(data.tag),
       requireInteraction: true,
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      data: { url: data.url || "/" },
+      icon: new URL("./icon-192.png", self.registration.scope).href,
+      badge: new URL("./icon-192.png", self.registration.scope).href,
+      data: { url: data.url || "./mom.html" },
       lang: "ru",
     }),
   );
@@ -27,12 +27,12 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  const url = new URL(event.notification.data?.url || "./mom.html", self.registration.scope).href;
   event.waitUntil(
     (async () => {
       const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of list) {
-        if (client.url === url && "focus" in client) {
+        if (client.url.split("?")[0] === url.split("?")[0] && "focus" in client) {
           client.postMessage({ type: "refresh" });
           return client.focus();
         }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dueEvents, localTime, previousDay, dosesForDay } from "../src/schedule.js";
+import { dueEvents, localTime, previousDay, dosesForDay } from "../../web/js/schedule.js";
 
 // 2026-11-06 — пятница. Москва = UTC+3.
 const at = (hhmm, day = "2026-11-06") => new Date(`${day}T${hhmm}:00+03:00`);
