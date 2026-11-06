@@ -140,7 +140,10 @@
      <div class="card edit-card" style="margin-top:22px">
        <div class="name" style="margin-bottom:10px">⚙️ Настройки</div>
        <label class="field"><span>Как к вам обращаться</span><input id="sName" placeholder="Например, мама" maxlength="40" autocomplete="off"></label>
-       <label class="switch-big"><input type="checkbox" id="sRepeat"> <span>Напоминать ещё раз, если я не нажала «Выпила»</span></label>
+       <label class="switch-big"><input type="checkbox" id="sRepeat"> <span id="sRepeatLabel">Напоминать ещё раз, если я не нажала «Выпила»</span></label>
+       <label class="field"><span>Кнопка «принял лекарство»</span>
+         <select id="sForm"><option value="f">«Выпила»</option><option value="m">«Выпил»</option><option value="n">«Принято»</option></select>
+       </label>
        <label class="field"><span>Через сколько минут</span>
          <select id="sInterval"><option value="10">10 минут</option><option value="15">15 минут</option><option value="20">20 минут</option><option value="30">30 минут</option><option value="60">1 час</option></select>
        </label>
@@ -192,6 +195,7 @@
     // ----- Ключ доступа: из ссылки (?r=…&k=…), затем запоминаем на телефоне -----
     const params = new URLSearchParams(location.search);
     let creds = null;
+    let profile = "state.json";
     try {
       if (params.get("k") && params.get("r")) {
         creds = { repo: params.get("r"), token: params.get("k") };
@@ -199,10 +203,15 @@
       } else {
         creds = JSON.parse(localStorage.getItem("napominalka-mom") || "null");
       }
+      const p = params.get("p") || (params.get("k") ? "state.json" : localStorage.getItem("napominalka-profile")) || "state.json";
+      if (core.PROFILE_FILE_RE.test(p)) profile = p;
+      localStorage.setItem("napominalka-profile", profile);
     } catch {}
 
     // Манифест с адресом, в котором есть ключ, — чтобы значок на экране «Домой» открывал именно эту страницу.
-    const startUrl = creds ? `${location.origin}${location.pathname}?r=${encodeURIComponent(creds.repo)}&k=${encodeURIComponent(creds.token)}` : location.href;
+    const startUrl = creds
+      ? `${location.origin}${location.pathname}?r=${encodeURIComponent(creds.repo)}&k=${encodeURIComponent(creds.token)}${profile !== "state.json" ? `&p=${encodeURIComponent(profile)}` : ""}`
+      : location.href;
     const manifest = {
       name: "Таблетки", short_name: "Таблетки", start_url: startUrl, scope: new URL("./", location.href).href,
       display: "standalone", background_color: "#f2f4f8", theme_color: "#2f7cf6", lang: "ru",
@@ -213,7 +222,8 @@
     };
     document.getElementById("manifestLink").href = "data:application/manifest+json;charset=utf-8," + encodeURIComponent(JSON.stringify(manifest));
 
-    const store = creds ? new GitHubStore(creds) : null;
+    const store = creds ? new GitHubStore({ ...creds, path: profile }) : null;
+    const W = () => core.words(state);
     let state = null;
     let view = null;
 
@@ -270,7 +280,7 @@
         if (d.paused) {
           actions = `
             <div class="paused-label">⛔ Таблетки закончились — напоминания на паузе</div>
-            <button class="btn-primary btn-block big" data-action="resume" data-med="${esc(d.medId)}">🛒 Купила, напоминать снова</button>`;
+            <button class="btn-primary btn-block big" data-action="resume" data-med="${esc(d.medId)}">🛒 ${esc(W().bought)}</button>`;
         } else if (d.takenAt) {
           actions = `
             <div class="taken-label">✅ Выпито в ${esc(formatClock(d.takenAt))}</div>
@@ -278,7 +288,7 @@
         } else {
           actions = `
             ${due ? '<div class="due-label">🔔 Пора принять!</div>' : ""}
-            <button class="btn-green btn-block big" data-action="take" data-med="${esc(d.medId)}" data-time="${esc(d.time)}">✅ Выпила</button>
+            <button class="btn-green btn-block big" data-action="take" data-med="${esc(d.medId)}" data-time="${esc(d.time)}">✅ ${esc(W().took)}</button>
             <button class="btn-danger out-btn" data-action="out" data-med="${esc(d.medId)}" data-name="${esc(d.name)}">💊 Закончились таблетки</button>`;
         }
         return `
@@ -479,6 +489,8 @@
       $("sInterval").value = String(state.settings.repeatInterval);
       if (!$("sInterval").value) $("sInterval").value = "15";
       $("sCount").value = String(Math.min(3, state.settings.repeatCount));
+      $("sForm").value = state.settings.form || "f";
+      $("sRepeatLabel").textContent = `Напоминать ещё раз, ${W().repeatIf}`;
     }
 
     $("sSave").addEventListener("click", async () => {
@@ -490,8 +502,10 @@
           s.settings.repeatEnabled = $("sRepeat").checked;
           s.settings.repeatInterval = Number($("sInterval").value) || 15;
           s.settings.repeatCount = Number($("sCount").value) || 2;
+          s.settings.form = $("sForm").value;
         }, "Мама: настройки");
         toast("Настройки сохранены ✅");
+        renderSettings();
       } catch (err) {
         toast(friendly(err));
       } finally {
@@ -600,7 +614,7 @@
             color: existing?.color || core.COLORS[s.medicines.length % core.COLORS.length],
           });
           const mom = core.momLabel(s);
-          notifyFamily(s, `✏️ ${mom} ${isNew ? "добавила лекарство" : "изменила расписание"}`, `${med.name}: ${med.times.join(", ")}${med.dosage ? ` — ${med.dosage}` : ""}`, med.id);
+          notifyFamily(s, `✏️ ${mom} ${isNew ? core.words(s).added : core.words(s).changed}`, `${med.name}: ${med.times.join(", ")}${med.dosage ? ` — ${med.dosage}` : ""}`, med.id);
         }, isNew ? "Мама: добавила лекарство" : "Мама: изменила лекарство");
         toast("Сохранено ✅ Напоминания придут в новое время.");
         renderMeds();
@@ -619,7 +633,7 @@
         await change((s) => {
           core.deleteMedicine(s, med.id);
           const mom = core.momLabel(s);
-          notifyFamily(s, `🗑 ${mom} удалила лекарство`, med.name, med.id);
+          notifyFamily(s, `🗑 ${mom} ${core.words(s).deleted}`, med.name, med.id);
         }, "Мама: удалила лекарство");
         toast("Лекарство удалено");
         renderMeds();

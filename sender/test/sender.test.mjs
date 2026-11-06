@@ -17,6 +17,9 @@ function fakeGitHub() {
     calls.push(`${init.method} ${u.pathname}`);
     assert.match(init.headers.Authorization, /^Bearer /);
     if (u.pathname === "/repos/me/data") return Response.json({ private: true, permissions: { push: true } });
+    if (u.pathname === "/repos/me/data/contents/") {
+      return Response.json([...files.keys()].map((name) => ({ name, type: "file" })).concat([{ name: "README.md", type: "file" }]));
+    }
     const m = /^\/repos\/me\/data\/contents\/(.+)$/.exec(u.pathname);
     if (!m) return Response.json({ message: "Not Found" }, { status: 404 });
     const f = files.get(m[1]);
@@ -147,4 +150,42 @@ test("проверка данных", () => {
   assert.deepEqual(med.times, ["08:00", "20:00"]);
   assert.deepEqual(med.days, []);
   assert.throws(() => core.addSubscription(s, "mom", { endpoint: "http://x", keys: {} }), /подписка/);
+});
+
+test("несколько человек: у каждого своё расписание, ссылки ведут на свою страницу", async () => {
+  const gh = fakeGitHub();
+  const base = new GitHubStore({ token: "t", repo: "me/data", fetchImpl: gh.fetchImpl });
+  const mom = core.defaultState();
+  mom.vapid = await generateVapidKeys();
+  core.saveMedicine(mom, { name: "Аспирин", times: ["08:00"] });
+  await base.write(mom, null, "init");
+
+  const me = core.newProfileState("Тимур", mom.vapid, "m");
+  core.saveMedicine(me, { name: "Витамин Д", times: ["09:00"] });
+  const phone1 = phone("https://fcm.googleapis.com/fcm/send/samsung");
+  core.addSubscription(me, "mom", phone1.subscription, "Android");
+  await base.update((s) => void core.addSubscription(s, "admin", phone1.subscription, "Android")); // тот же телефон получает и сообщения о маме
+  assert.deepEqual(await base.listProfileFiles(), ["state.json"]);
+
+  // Записываем второго человека в отдельный файл.
+  const meStore = base.withPath("state-timur.json");
+  await meStore.write(me, null, "me");
+  assert.deepEqual(await base.listProfileFiles(), ["state.json", "state-timur.json"]);
+
+  const delivered = [];
+  const send = (sub, payload, vapid, subject) =>
+    sendPush(sub, payload, vapid, subject, async (url, init) => (delivered.push({ url, init }), new Response("", { status: 201 })));
+
+  await runOnce({ store: meStore, fromMs: msk("2026-11-06T08:55"), toMs: msk("2026-11-06T09:00"), subject: "x", send });
+  assert.equal(delivered.length, 1);
+  const msg = phone1.decrypt(delivered[0].init.body);
+  assert.equal(msg.title, "💊 Пора принять: Витамин Д");
+  assert.match(msg.body, /«Выпил»/);
+  assert.equal(msg.url, "./mom.html?p=state-timur.json");
+
+  // Мамин файл не трогаем: в 09:00 у неё ничего нет.
+  delivered.length = 0;
+  await runOnce({ store: base.withPath("state.json"), fromMs: msk("2026-11-06T08:55"), toMs: msk("2026-11-06T09:00"), subject: "x", send });
+  assert.equal(delivered.length, 0);
+  assert.throws(() => base.withPath("../evil.json"), /профиля/);
 });

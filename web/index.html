@@ -43,6 +43,7 @@
   <style>
     .connect-steps { padding-left: 22px; }
     .connect-steps li { margin: 10px 0; }
+    .profile-card select { font-size: 18px; font-weight: 700; }
     .warn { background: #fff4e5; color: #6b3a00; border-radius: 12px; padding: 10px 12px; font-size: 15px; }
     @media (prefers-color-scheme: dark) { .warn { background: #3a2a14; color: #ffd8a8; } }
   </style>
@@ -84,10 +85,19 @@
       </div>
       <div class="muted" id="todayTitle"></div>
 
+      <div class="card profile-card">
+        <label class="field" style="margin:0"><span>Чьё расписание</span>
+          <div class="row">
+            <select id="profileSelect" class="grow"></select>
+            <button id="addProfileBtn">＋ Человек</button>
+          </div>
+        </label>
+      </div>
+
       <div class="card" id="alerts"></div>
 
       <div class="card">
-        <h2>Сегодня у мамы</h2>
+        <h2 id="todayH">Сегодня</h2>
         <div id="today"></div>
       </div>
 
@@ -98,27 +108,28 @@
       </div>
 
       <div class="card">
-        <h2>📱 Телефон мамы</h2>
+        <h2 id="phoneH">📱 Телефон</h2>
         <ol class="steps">
-          <li>Отправьте маме ссылку ниже (в WhatsApp, Telegram, СМС) и откройте её на iPhone в <b>Safari</b>.</li>
-          <li>Нажмите «Поделиться» → «На экран „Домой“» → «Добавить».</li>
-          <li>Откройте «Таблетки» с экрана «Домой» и нажмите «Включить напоминания» → «Разрешить».</li>
-          <li>Там же внизу нажмите «Проверить уведомления».</li>
+          <li>Отправьте ссылку ниже (в WhatsApp, Telegram, СМС) на нужный телефон.</li>
+          <li><b>iPhone:</b> откройте в <b>Safari</b> → «Поделиться» → «На экран „Домой“» → «Добавить» → откройте «Таблетки» с экрана «Домой».<br>
+              <b>Android / Samsung:</b> откройте в <b>Chrome</b> (или Samsung Internet). Удобно добавить на главный экран: меню ⋮ → «Добавить на главный экран».</li>
+          <li>Нажмите «Включить напоминания» → «Разрешить».</li>
+          <li>Внизу страницы нажмите «Проверить уведомления».</li>
         </ol>
-        <div class="warn">🔒 В ссылке — ключ к расписанию. Отправьте её только маме.</div>
+        <div class="warn">🔒 В ссылке — ключ к расписанию. Отправляйте её только этому человеку.</div>
         <div class="link-box" id="momLink" style="margin-top:10px"></div>
         <div class="row" style="margin-top:10px">
           <button id="copyLinkBtn">📋 Скопировать</button>
           <button id="shareLinkBtn" class="hidden">📤 Отправить</button>
           <button class="btn-primary" id="testMomBtn">🔔 Проверить</button>
         </div>
-        <h3 style="margin-top:18px">Устройства мамы</h3>
+        <h3 style="margin-top:18px">Подключённые телефоны</h3>
         <div id="momDevices"></div>
       </div>
 
       <div class="card">
         <h2>🔔 Уведомления для вас</h2>
-        <p class="muted small" style="margin-top:0">Придут на это устройство, если у мамы закончились таблетки или она пропустила приём. На iPhone сначала добавьте эту страницу на экран «Домой» и откройте оттуда.</p>
+        <p class="muted small" style="margin-top:0">Придут на это устройство, если у человека из выбранного расписания закончились таблетки, пропущен приём или изменено расписание. На iPhone сначала добавьте эту страницу на экран «Домой» и откройте оттуда.</p>
         <div id="adminDevices"></div>
         <div class="row">
           <button class="btn-primary" id="subscribeAdminBtn">Получать на этом устройстве</button>
@@ -135,9 +146,12 @@
       <div class="card">
         <h2>⚙️ Настройки</h2>
         <form id="settingsForm">
-          <label class="field"><span>Как обращаться к маме (для приветствия)</span><input name="momName" placeholder="Например, мама или Галина Ивановна" maxlength="40"></label>
-          <label class="field"><span>Часовой пояс мамы</span><select name="timezone" id="tzSelect"></select></label>
-          <label class="switch"><input type="checkbox" name="repeatEnabled"> <span>Повторять напоминание, если мама не нажала «Выпила»</span></label>
+          <label class="field"><span>Как обращаться (для приветствия)</span><input name="momName" placeholder="Например, мама или Галина Ивановна" maxlength="40"></label>
+          <label class="field"><span>Часовой пояс</span><select name="timezone" id="tzSelect"></select></label>
+          <label class="switch"><input type="checkbox" name="repeatEnabled"> <span>Повторять напоминание, если приём не отмечен</span></label>
+          <label class="field"><span>Кнопка «принял лекарство»</span>
+            <select name="form"><option value="f">«Выпила»</option><option value="m">«Выпил»</option><option value="n">«Принято»</option></select>
+          </label>
           <div class="row">
             <label class="field grow"><span>Через сколько минут</span>
               <select name="repeatInterval">
@@ -234,7 +248,10 @@
     const owner = location.hostname.endsWith(".github.io") ? location.hostname.split(".")[0] : "toperlutty-bit";
     const siteRepo = location.hostname.endsWith(".github.io") ? location.pathname.split("/")[1] || "Napominalka" : "Napominalka";
 
-    let store = null;
+    let base = null; // хранилище (репозиторий)
+    let store = null; // файл выбранного человека
+    let profile = "state.json";
+    let profiles = []; // [{ path, name }]
     let state = null;
     let editing = null;
 
@@ -264,8 +281,61 @@
       try { return JSON.parse(localStorage.getItem("napominalka-admin") || "null"); } catch { return null; }
     }
 
+    function initialProfile() {
+      const fromUrl = new URLSearchParams(location.search).get("p");
+      let saved = null;
+      try { saved = localStorage.getItem("napominalka-admin-profile"); } catch {}
+      const p = fromUrl || saved || "state.json";
+      return core.PROFILE_FILE_RE.test(p) ? p : "state.json";
+    }
+
+    async function loadProfiles() {
+      const files = await base.listProfileFiles();
+      if (!files.includes("state.json")) files.unshift("state.json");
+      profiles = await Promise.all(files.map(async (path) => {
+        if (path === profile && state) return { path, name: core.momLabel(state) };
+        try {
+          const { state: st } = await base.withPath(path).read();
+          return { path, name: st ? core.momLabel(st) : path };
+        } catch { return { path, name: path }; }
+      }));
+      $("profileSelect").innerHTML = profiles.map((x) => `<option value="${esc(x.path)}">${esc(x.name)}</option>`).join("");
+      $("profileSelect").value = profile;
+    }
+
+    async function selectProfile(path) {
+      profile = core.PROFILE_FILE_RE.test(path) ? path : "state.json";
+      try { localStorage.setItem("napominalka-admin-profile", profile); } catch {}
+      store = base.withPath(profile);
+      let { state: s } = await store.read();
+      if (!s && profile !== "state.json") {
+        // Файл человека пропал — возвращаемся к основному.
+        return selectProfile("state.json");
+      }
+      state = s;
+      render();
+      await loadProfiles();
+    }
+
+    $("profileSelect").addEventListener("change", (e) => selectProfile(e.target.value).catch((err) => toast(err.message)));
+
+    $("addProfileBtn").addEventListener("click", async () => {
+      const name = (prompt("Как зовут человека? (так будет написано в приветствии и в уведомлениях)") || "").trim();
+      if (!name) return;
+      try {
+        const main = (await base.withPath("state.json").read()).state;
+        const path = `state-${core.randomId(6).replace(/[^A-Za-z0-9]/g, "x")}.json`;
+        const st = core.newProfileState(name, main.vapid, "n", main.settings.timezone);
+        await base.withPath(path).write(st, null, "Новый человек");
+        await selectProfile(path);
+        toast(`Добавлено расписание: ${name}. Добавьте лекарства и отправьте ссылку на телефон.`);
+      } catch (err) { toast(err.message); }
+    });
+
     async function connect(creds, { initIfMissing }) {
-      store = new GitHubStore(creds);
+      base = new GitHubStore(creds);
+      profile = initialProfile();
+      store = base.withPath("state.json");
       const access = await store.checkAccess();
       let { state: s } = await store.read();
       if (!s) {
@@ -281,7 +351,11 @@
       state = s;
       saveCreds(creds);
       show("main");
-      render();
+      if (profile !== "state.json") await selectProfile(profile);
+      else {
+        render();
+        await loadProfiles();
+      }
       if (!access.private) toast("⚠️ Репозиторий с данными публичный! Сделайте его приватным в настройках репозитория.");
     }
 
@@ -341,21 +415,26 @@
 
     function momUrl() {
       const base = new URL("./mom.html", location.href);
-      base.search = new URLSearchParams({ r: store.repo, k: store.token }).toString();
+      const params = { r: store.repo, k: store.token };
+      if (profile !== "state.json") params.p = profile;
+      base.search = new URLSearchParams(params).toString();
       return base.href;
     }
 
     function render() {
       const s = state;
       const today = core.todayDoses(s);
+      const pname = core.momLabel(s);
+      $("todayH").textContent = `Сегодня — ${pname}`;
+      $("phoneH").textContent = `📱 Телефон: ${pname}`;
       $("todayTitle").textContent = fmtDay(today.day);
 
       const alerts = [];
       for (const m of s.medicines.filter((x) => x.paused)) {
-        alerts.push(`<div class="row" style="margin:6px 0"><div class="grow">⛔ <b>${esc(m.name)}</b> — закончились${m.pausedBy === "mom" ? " (отметила мама)" : ""}. Напоминания на паузе.</div>
+        alerts.push(`<div class="row" style="margin:6px 0"><div class="grow">⛔ <b>${esc(m.name)}</b> — закончились${m.pausedBy === "mom" ? " (отмечено на телефоне)" : ""}. Напоминания на паузе.</div>
           <button class="btn-green" data-resume="${esc(m.id)}">Купили</button></div>`);
       }
-      if (!s.subscriptions.some((x) => x.role === "mom")) alerts.push("<div>📱 Мамин телефон ещё не подключён — см. раздел «Телефон мамы».</div>");
+      if (!s.subscriptions.some((x) => x.role === "mom")) alerts.push(`<div>📱 Телефон (${esc(pname)}) ещё не подключён — см. раздел «Телефон».</div>`);
       if (!s.medicines.length) alerts.push("<div>💊 Добавьте лекарства и время приёма.</div>");
       if (s.outbox.length) alerts.push(`<div class="muted small">⏳ В очереди на отправку: ${s.outbox.length} (уйдёт при следующем запуске рассылки).</div>`);
       $("alerts").innerHTML = alerts.join("");
@@ -399,6 +478,7 @@
         f.repeatInterval.value = String(s.settings.repeatInterval);
         f.repeatCount.value = String(s.settings.repeatCount);
         f.notifyMissed.checked = s.settings.notifyMissed;
+        f.form.value = s.settings.form || "f";
       }
 
       $("history").innerHTML = core.history(s).map((h, i) => {
@@ -523,6 +603,7 @@
           s.settings.repeatInterval = Math.min(120, Math.max(5, Number(f.repeatInterval.value) || 15));
           s.settings.repeatCount = Math.min(5, Math.max(1, Number(f.repeatCount.value) || 2));
           s.settings.notifyMissed = f.notifyMissed.checked;
+          s.settings.form = f.form.value;
         }, "Настройки");
         f.querySelector("button").blur();
         toast("Настройки сохранены");
@@ -545,7 +626,7 @@
 
     async function sendTest(role) {
       if (!state.subscriptions.some((x) => x.role === role)) {
-        return toast(role === "mom" ? "Мамин телефон ещё не подключён" : "Это устройство ещё не подключено");
+        return toast(role === "mom" ? "Телефон ещё не подключён" : "Это устройство ещё не подключено");
       }
       try {
         await change((s) => core.queueTest(s, { role }), "Проверка уведомлений");

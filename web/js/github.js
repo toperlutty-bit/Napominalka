@@ -1,7 +1,7 @@
 // Хранение данных в файле state.json приватного репозитория GitHub (через GitHub API).
 // Работает и в браузере, и в Node (рассыльщик в GitHub Actions).
 
-import { normalizeState, pruneState } from "./core.js";
+import { normalizeState, pruneState, PROFILE_FILE_RE } from "./core.js";
 
 const API = "https://api.github.com";
 const isBrowser = typeof window !== "undefined";
@@ -62,6 +62,27 @@ export class GitHubStore {
     if (res.status === 403) throw new StoreError(`Нет доступа: ${msg || "у ключа не хватает прав"}`, 403);
     if (res.status === 409 || res.status === 422) throw new StoreError("conflict", 409);
     throw new StoreError(`Ошибка GitHub ${res.status}: ${msg}`, res.status);
+  }
+
+  /** Хранилище того же репозитория, но другого файла (профиля). */
+  withPath(path) {
+    if (!PROFILE_FILE_RE.test(path)) throw new StoreError("Неверное имя профиля", 400);
+    return new GitHubStore({ token: this.token, repo: this.repo, path, fetchImpl: this.fetch });
+  }
+
+  /** Файлы профилей в репозитории: ["state.json", "state-abc.json", …] — первый всегда основной. */
+  async listProfileFiles() {
+    let list;
+    try {
+      list = await this.request("GET", `/repos/${this.repo}/contents/?t=${Date.now()}`);
+    } catch (e) {
+      if (e.status === 404) return []; // пустой репозиторий
+      throw e;
+    }
+    return list
+      .filter((f) => f.type === "file" && PROFILE_FILE_RE.test(f.name))
+      .map((f) => f.name)
+      .sort((a, b) => (a === "state.json" ? -1 : b === "state.json" ? 1 : a.localeCompare(b)));
   }
 
   /** Проверяет, что ключ даёт доступ к репозиторию на запись. */

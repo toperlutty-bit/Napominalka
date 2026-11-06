@@ -28,15 +28,19 @@ export function collectEvents(state, fromMs, toMs) {
 export async function runOnce({ store, fromMs, toMs, subject, send = sendPush }) {
   const { state } = await store.read();
   if (!state || !state.vapid) return { skipped: "нет данных или ключей" };
+  // Для второго и следующих людей ссылка в уведомлении открывает их страницу.
+  const profileQuery = store.path && store.path !== "state.json" ? `?p=${encodeURIComponent(store.path)}` : "";
+  const withProfile = (payload) =>
+    profileQuery && payload.url && !payload.url.includes("?") ? { ...payload, url: payload.url + profileQuery } : payload;
 
   const messages = [];
   for (const ev of collectEvents(state, fromMs, toMs)) {
-    messages.push({ role: ev.kind === "missed" ? "admin" : "mom", payload: eventPayload(state, ev) });
+    messages.push({ role: ev.kind === "missed" ? "admin" : "mom", payload: withProfile(eventPayload(state, ev)) });
   }
   const outboxIds = new Set();
   for (const item of state.outbox) {
     outboxIds.add(item.id);
-    messages.push({ role: item.role, endpoint: item.endpoint, payload: item.payload });
+    messages.push({ role: item.role, endpoint: item.endpoint, payload: withProfile(item.payload) });
   }
 
   const gone = new Set();
@@ -113,16 +117,28 @@ async function main() {
   const prevRun = prev.workflow_runs.find((r) => r.id !== current.id);
   const fromMs = prevRun ? Date.parse(prevRun.run_started_at) : toMs - 5 * MINUTE;
 
-  const store = new GitHubStore({ token: DATA_TOKEN, repo: DATA_REPO });
+  const base = new GitHubStore({ token: DATA_TOKEN, repo: DATA_REPO });
   const subject = `https://${owner.toLowerCase()}.github.io`;
-  let stats;
+  let files;
   try {
-    stats = await runOnce({ store, fromMs, toMs, subject });
+    files = await base.listProfileFiles();
+    if (!files.length) files = ["state.json"];
   } catch (e) {
     if (e.status === 404 || e.status === 401 || e.status === 403) await diagnoseToken(DATA_TOKEN, DATA_REPO);
     throw e;
   }
-  console.log(`Окно ${new Date(fromMs).toISOString()} → ${new Date(toMs).toISOString()}:`, JSON.stringify(stats));
+  let failedProfiles = 0;
+  for (const [i, path] of files.entries()) {
+    try {
+      const stats = await runOnce({ store: base.withPath(path), fromMs, toMs, subject });
+      console.log(`Человек ${i + 1} — окно ${new Date(fromMs).toISOString()} → ${new Date(toMs).toISOString()}:`, JSON.stringify(stats));
+    } catch (e) {
+      failedProfiles++;
+      console.log(`Человек ${i + 1}: ошибка — ${e.message}`);
+      if (e.status === 404 || e.status === 401 || e.status === 403) await diagnoseToken(DATA_TOKEN, DATA_REPO);
+    }
+  }
+  if (failedProfiles) throw new Error(`Не удалось обработать: ${failedProfiles} из ${files.length}`);
 
   // Раз в сутки не даём GitHub выключить расписание из-за «неактивности» репозитория.
   if (new Date(toMs).getUTCHours() === 3 && new Date(toMs).getUTCMinutes() < 10) {
