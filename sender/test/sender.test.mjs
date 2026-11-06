@@ -189,3 +189,29 @@ test("несколько человек: у каждого своё распис
   assert.equal(delivered.length, 0);
   assert.throws(() => base.withPath("../evil.json"), /профиля/);
 });
+
+test("runAll обходит всех людей и не падает из-за одного сломанного файла", async () => {
+  const { runAll } = await import("../runner.js");
+  const gh = fakeGitHub();
+  const base = new GitHubStore({ token: "t", repo: "me/data", fetchImpl: gh.fetchImpl });
+  const s1 = core.defaultState();
+  s1.vapid = await generateVapidKeys();
+  core.saveMedicine(s1, { name: "А", times: ["08:00"] });
+  const p1 = phone("https://web.push.apple.com/a");
+  core.addSubscription(s1, "mom", p1.subscription, "iPhone");
+  await base.write(s1, null, "1");
+  const s2 = core.newProfileState("Б", s1.vapid);
+  core.saveMedicine(s2, { name: "Б", times: ["08:00"] });
+  core.addSubscription(s2, "mom", p1.subscription, "iPhone");
+  await base.withPath("state-b.json").write(s2, null, "2");
+  gh.files.set("state-broken.json", { content: Buffer.from("{broken json").toString("base64"), sha: "x" });
+
+  const delivered = [];
+  const send = (sub, payload, vapid, subject) =>
+    sendPush(sub, payload, vapid, subject, async (url, init) => (delivered.push(p1.decrypt(init.body)), new Response("", { status: 201 })));
+  const logs = [];
+  const r = await runAll({ base, fromMs: msk("2026-11-06T07:59"), toMs: msk("2026-11-06T08:00"), subject: "x", send, log: (m) => logs.push(m) });
+  assert.equal(r.profiles, 3);
+  assert.equal(r.failed, 1);
+  assert.deepEqual(delivered.map((d) => d.url).sort(), ["./mom.html", "./mom.html?p=state-b.json"]);
+});
