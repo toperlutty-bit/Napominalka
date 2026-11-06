@@ -375,6 +375,30 @@ async function handleMomApi(request, env, state, token, action) {
     return json(momView(state));
   }
 
+  if (action === "test") {
+    // Проверка: отправить уведомление на это устройство мамы.
+    const target = state.subscriptions.find((s) => s.role === "mom" && s.subscription.endpoint === body.endpoint);
+    if (!target) return error("Этот телефон ещё не подключён к напоминаниям. Нажмите «Включить напоминания».", 404);
+    const r = await sendPush(
+      target.subscription,
+      {
+        title: "✅ Проверка: всё работает!",
+        body: "Так будут приходить напоминания о таблетках.",
+        tag: `test-${Date.now()}`,
+        url: `/m/${state.momToken}`,
+      },
+      state.vapid,
+      state.origin || "https://napominalka.workers.dev",
+    );
+    if (r.gone) {
+      state.subscriptions = state.subscriptions.filter((s) => s.id !== target.id);
+      await saveState(env, state);
+      return error("Подписка устарела. Нажмите «Включить напоминания» ещё раз.", 410);
+    }
+    if (!r.ok) return error(`Сервис уведомлений ответил ошибкой ${r.status}. Попробуйте позже.`, 502);
+    return json({ ok: true });
+  }
+
   if (action === "pause") {
     const med = state.medicines.find((m) => m.id === body.medId);
     if (!med) return error("Лекарство не найдено", 404);

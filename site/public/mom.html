@@ -42,6 +42,11 @@
     .steps { margin: 10px 0 0; padding-left: 26px; font-size: 21px; }
     .steps li { margin: 8px 0; }
     .share-icon { display: inline-block; vertical-align: -4px; }
+    .checklist { list-style: none; padding: 0; margin: 12px 0 0; font-size: 18px; }
+    .checklist li { margin: 6px 0; }
+    .check-result { margin-top: 14px; padding: 14px; border-radius: 14px; font-size: 19px; font-weight: 600; }
+    .check-result.ok { background: var(--green-bg); color: var(--green); }
+    .check-result.bad { background: #fde7ef; color: var(--red); }
   </style>
 </head>
 <body>
@@ -78,6 +83,14 @@
     <div class="card hidden" id="empty">
       <h2>Сегодня лекарств нет</h2>
       <div class="muted">Можно отдыхать 🙂</div>
+    </div>
+
+    <div class="card" id="checkCard">
+      <h2>🔔 Проверка уведомлений</h2>
+      <div class="muted small">Нажмите, чтобы проверить, приходят ли напоминания на этот телефон.</div>
+      <ul class="checklist" id="checklist"></ul>
+      <button class="btn-primary btn-block big" id="checkBtn">Проверить уведомления</button>
+      <div id="checkResult" class="check-result hidden"></div>
     </div>
 
     <div class="card hidden" id="errorBox">
@@ -198,6 +211,7 @@
         document.getElementById("errorBox").classList.add("hidden");
         render();
         await updatePushUi();
+        await renderChecklist();
       } catch (e) {
         document.getElementById("errorText").textContent = e.message;
         document.getElementById("errorBox").classList.remove("hidden");
@@ -281,10 +295,58 @@
         await call("subscribe", { subscription: sub.toJSON() });
         toast("Напоминания включены 🔔");
         await updatePushUi();
+        await renderChecklist();
       } catch (e) {
         alert("Не получилось включить напоминания: " + e.message);
       } finally {
         btn.disabled = false;
+      }
+    });
+
+    // ----- Проверка уведомлений -----
+    async function checkState() {
+      const permission = pushSupported ? Notification.permission : "unsupported";
+      const sub = pushSupported && registration ? await registration.pushManager.getSubscription() : null;
+      return {
+        homeScreen: !isIOS || isStandalone,
+        permission,
+        subscribed: Boolean(sub),
+        sub,
+      };
+    }
+
+    async function renderChecklist() {
+      const s = await checkState();
+      const line = (ok, text) => `<li>${ok ? "✅" : "❌"} ${text}</li>`;
+      document.getElementById("checklist").innerHTML = [
+        isIOS ? line(s.homeScreen, s.homeScreen ? "Открыто с экрана «Домой»" : "Не открыто с экрана «Домой»") : "",
+        line(s.permission === "granted", s.permission === "granted" ? "Уведомления разрешены" : s.permission === "denied" ? "Уведомления запрещены" : s.permission === "unsupported" ? "Браузер не поддерживает уведомления" : "Уведомления ещё не разрешены"),
+        line(s.subscribed, s.subscribed ? "Телефон подключён к напоминаниям" : "Телефон ещё не подключён"),
+      ].join("");
+    }
+
+    function showCheckResult(ok, text) {
+      const el = document.getElementById("checkResult");
+      el.className = `check-result ${ok ? "ok" : "bad"}`;
+      el.textContent = text;
+    }
+
+    document.getElementById("checkBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("checkBtn");
+      btn.disabled = true;
+      try {
+        const s = await checkState();
+        if (!s.homeScreen) return showCheckResult(false, "Сначала добавьте сайт на экран «Домой» (инструкция вверху) и откройте его оттуда.");
+        if (s.permission === "unsupported") return showCheckResult(false, "Этот браузер не умеет показывать уведомления. Нужен iPhone с iOS 16.4 или новее.");
+        if (s.permission === "denied") return showCheckResult(false, "Уведомления запрещены. Включите: Настройки → Уведомления → Таблетки → Допуск уведомлений.");
+        if (!s.subscribed) return showCheckResult(false, "Сначала нажмите «Включить напоминания» вверху страницы.");
+        await call("test", { endpoint: s.sub.endpoint });
+        showCheckResult(true, "Уведомление отправлено! Оно должно появиться через несколько секунд. Если появилось — всё работает ✅");
+      } catch (e) {
+        showCheckResult(false, e.message);
+      } finally {
+        btn.disabled = false;
+        renderChecklist();
       }
     });
 

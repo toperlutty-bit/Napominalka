@@ -166,6 +166,15 @@ test("полный сценарий: настройка, расписание, �
   assert.equal(testRes.body.failed, 1);
   assert.equal(testRes.body.view.subscriptions.filter((s) => s.role === "mom").length, 1);
 
+  // Кнопка «Проверить уведомления» на телефоне мамы — отправка только на это устройство.
+  sent.length = 0;
+  const check = await call(env, "POST", `/api/m/${token}/test`, { endpoint: momPhone.subscription.endpoint });
+  assert.equal(check.status, 200);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].url, momPhone.subscription.endpoint);
+  assert.equal(momPhone.decrypt(sent[0].init.body).title, "✅ Проверка: всё работает!");
+  assert.equal((await call(env, "POST", `/api/m/${token}/test`, { endpoint: "https://web.push.apple.com/unknown" })).status, 404);
+
   // Новая ссылка для мамы — старая перестаёт работать.
   await call(env, "POST", "/api/admin/reset-mom-link", {});
   assert.equal((await call(env, "GET", `/api/m/${token}/today`)).status, 404);
