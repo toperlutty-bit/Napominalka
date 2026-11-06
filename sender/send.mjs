@@ -75,6 +75,28 @@ async function gh(path, init = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+/** Подсказка в журнале, что не так с ключом DATA_TOKEN (без названий других репозиториев). */
+async function diagnoseToken(token, repo) {
+  const kind = token.startsWith("github_pat_") ? "fine-grained (github_pat_…)" : token.startsWith("ghp_") ? "classic (ghp_…)" : "неизвестный формат";
+  console.log(`Диагностика ключа: тип — ${kind}, длина ${token.length}${/\s/.test(token) ? ", ЕСТЬ ПРОБЕЛЫ/ПЕРЕНОСЫ — вставьте ключ без них" : ""}.`);
+  try {
+    const headers = { Authorization: `Bearer ${token.trim()}`, Accept: "application/vnd.github+json" };
+    const user = await fetch("https://api.github.com/user", { headers });
+    console.log(`  /user: ${user.status}; scopes (для classic): ${user.headers.get("x-oauth-scopes") ?? "—"}`);
+    if (user.ok) console.log(`  ключ принадлежит: ${(await user.json()).login}`);
+    const res = await fetch("https://api.github.com/user/repos?per_page=100&affiliation=owner", { headers });
+    if (res.ok) {
+      const list = await res.json();
+      const sees = list.some((r) => r.full_name.toLowerCase() === repo.toLowerCase());
+      console.log(`  ключ видит репозиториев: ${list.length}, из них приватных: ${list.filter((r) => r.private).length}; ${repo}: ${sees ? "ВИДИТ" : "НЕ ВИДИТ"}`);
+    } else {
+      console.log(`  /user/repos: ${res.status}`);
+    }
+  } catch (e) {
+    console.log(`  диагностика не удалась: ${e.message}`);
+  }
+}
+
 async function main() {
   const { DATA_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID } = process.env;
   const owner = GITHUB_REPOSITORY.split("/")[0];
@@ -93,7 +115,13 @@ async function main() {
 
   const store = new GitHubStore({ token: DATA_TOKEN, repo: DATA_REPO });
   const subject = `https://${owner.toLowerCase()}.github.io`;
-  const stats = await runOnce({ store, fromMs, toMs, subject });
+  let stats;
+  try {
+    stats = await runOnce({ store, fromMs, toMs, subject });
+  } catch (e) {
+    if (e.status === 404 || e.status === 401 || e.status === 403) await diagnoseToken(DATA_TOKEN, DATA_REPO);
+    throw e;
+  }
   console.log(`Окно ${new Date(fromMs).toISOString()} → ${new Date(toMs).toISOString()}:`, JSON.stringify(stats));
 
   // Раз в сутки не даём GitHub выключить расписание из-за «неактивности» репозитория.
