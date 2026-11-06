@@ -57,7 +57,10 @@
     .edit-card input { font-size: 22px; min-height: 60px; }
     .edit-card .chip { font-size: 18px; min-height: 44px; padding: 8px 14px; }
     .time-row { display: flex; gap: 10px; margin-bottom: 10px; }
-    .time-row input { flex: 1; font-size: 26px; font-weight: 700; }
+    .time-row { align-items: center; }
+    .time-row select { flex: 1; font-size: 28px; font-weight: 800; min-height: 64px; text-align: center; text-align-last: center; font-variant-numeric: tabular-nums; }
+    .tp-sep { font-size: 30px; font-weight: 800; }
+    .tz-note { font-weight: 500; font-size: 16px; }
     .time-row button { min-width: 60px; font-size: 22px; }
     .edit-card select { font-size: 22px; min-height: 60px; }
     .days-big { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -160,7 +163,7 @@
            <button type="button" class="chip">½ таблетки</button><button type="button" class="chip">1 капсула</button>
          </div>
        </label>
-       <div class="field"><span>Во сколько принимать</span>
+       <div class="field"><span>Во сколько принимать <span class="tz-note" id="fTz"></span></span>
          <div id="fTimes"></div>
          <button type="button" class="btn-block" id="fAddTime">＋ Добавить ещё время</button>
        </div>
@@ -184,6 +187,7 @@
   <script type="module">
     import { GitHubStore } from "./js/github.js";
     import * as core from "./js/core.js";
+    import { timeSelectsHtml, readTimes, tzLabel } from "./js/timepicker.js";
 
     // ----- Ключ доступа: из ссылки (?r=…&k=…), затем запоминаем на телефоне -----
     const params = new URLSearchParams(location.search);
@@ -238,9 +242,9 @@
     }
     function formatClock(iso) {
       try {
-        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: state.settings.timezone }).format(new Date(iso));
+        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: state.settings.timezone }).format(new Date(iso));
       } catch {
-        return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+        return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
       }
     }
     const toMinutes = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
@@ -518,7 +522,7 @@
     function addTimeRow(value) {
       const row = document.createElement("div");
       row.className = "time-row";
-      row.innerHTML = `<input type="time" value="${esc(value)}" aria-label="Время приёма"><button type="button" aria-label="Убрать это время">✕</button>`;
+      row.innerHTML = `${timeSelectsHtml(value)}<button type="button" aria-label="Убрать это время">✕</button>`;
       row.querySelector("button").onclick = () => {
         if ($("fTimes").children.length > 1) row.remove();
         else toast("Должно остаться хотя бы одно время");
@@ -538,6 +542,7 @@
       $("fDays").innerHTML = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
         .map((d, i) => `<label><input type="checkbox" value="${i + 1}" ${days.includes(i + 1) ? "checked" : ""}>${d}</label>`).join("");
       $("fDelete").classList.toggle("hidden", !med);
+      $("fTz").textContent = `(${tzLabel(state.settings.timezone)})`;
       showScreen("editScreen");
     }
 
@@ -557,7 +562,7 @@
       if (b) openEditor(state.medicines.find((m) => m.id === b.dataset.edit));
     });
     $("fAddTime").addEventListener("click", () => {
-      const last = [...$("fTimes").querySelectorAll("input")].map((i) => i.value).filter(Boolean).sort().pop();
+      const last = readTimes($("fTimes")).sort().pop();
       let next = "20:00";
       if (last) {
         const m = Math.min(toMinutes(last) + 4 * 60, 23 * 60);
@@ -574,7 +579,7 @@
 
     $("fSave").addEventListener("click", async () => {
       const name = $("fName").value.trim();
-      const times = [...$("fTimes").querySelectorAll("input")].map((i) => i.value).filter(Boolean);
+      const times = readTimes($("fTimes"));
       if (!name) { toast("Напишите название лекарства"); $("fName").focus(); return; }
       if (!times.length) { toast("Укажите, во сколько принимать"); return; }
       const days = [...$("fDays").querySelectorAll("input:checked")].map((i) => Number(i.value));

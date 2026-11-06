@@ -22,7 +22,9 @@
     .dose-time { font-weight: 700; width: 56px; font-variant-numeric: tabular-nums; }
     .link-box { word-break: break-all; background: var(--gray-bg); padding: 10px 12px; border-radius: 12px; font-size: 15px; }
     .time-input { display: flex; gap: 8px; margin-bottom: 8px; }
-    .time-input input { flex: 1; }
+    .time-input { align-items: center; }
+    .time-input select { flex: 1; font-size: 22px; font-weight: 700; text-align: center; text-align-last: center; }
+    .tp-sep { font-size: 22px; font-weight: 800; }
     .days { display: flex; gap: 6px; flex-wrap: wrap; }
     .days label { display: flex; align-items: center; gap: 4px; background: var(--gray-bg); padding: 6px 10px; border-radius: 10px; font-size: 16px; }
     .days input { width: 18px; height: 18px; }
@@ -183,7 +185,7 @@
         </div>
       </label>
       <div class="field">
-        <span class="muted small" style="font-weight:600">Время приёма</span>
+        <span class="muted small" style="font-weight:600">Время приёма <span id="medTz"></span></span>
         <div id="timesBox" style="margin-top:6px"></div>
         <button type="button" class="btn-link" id="addTimeBtn">＋ Добавить время</button>
       </div>
@@ -211,6 +213,7 @@
     import { GitHubStore } from "./js/github.js";
     import * as core from "./js/core.js";
     import { generateVapidKeys } from "./js/webpush.js";
+    import { timeSelectsHtml, readTimes, tzLabel } from "./js/timepicker.js";
 
     const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
     const TIMEZONES = [
@@ -326,7 +329,7 @@
     }
     function fmtClock(iso) {
       try {
-        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: state.settings.timezone }).format(new Date(iso));
+        return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: state.settings.timezone }).format(new Date(iso));
       } catch { return ""; }
     }
     function doseStatus(d, isPast) {
@@ -435,7 +438,7 @@
     function addTimeRow(value) {
       const row = document.createElement("div");
       row.className = "time-input";
-      row.innerHTML = `<input type="time" required value="${esc(value)}"><button type="button" aria-label="Удалить время">✕</button>`;
+      row.innerHTML = `${timeSelectsHtml(value)}<button type="button" aria-label="Удалить время">✕</button>`;
       row.querySelector("button").onclick = () => row.remove();
       $("timesBox").appendChild(row);
     }
@@ -456,11 +459,12 @@
       const color = med?.color || core.COLORS[state.medicines.length % core.COLORS.length];
       $("colorsBox").innerHTML = core.COLORS.map((c) => `<button type="button" class="color-opt ${c === color ? "sel" : ""}" data-color="${c}" style="background:${c}" aria-label="Цвет"></button>`).join("");
       $("deleteMedBtn").classList.toggle("hidden", !med);
+      $("medTz").textContent = `(${tzLabel(state.settings.timezone)})`;
       $("medDialog").showModal();
     }
 
     $("addTimeBtn").addEventListener("click", () => {
-      const last = [...$("timesBox").querySelectorAll("input")].map((i) => i.value).filter(Boolean).sort().pop();
+      const last = readTimes($("timesBox")).sort().pop();
       let next = "20:00";
       if (last) {
         const m = Math.min(toMin(last) + 4 * 60, 23 * 60);
@@ -494,7 +498,7 @@
     $("medForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const f = e.target;
-      const times = [...$("timesBox").querySelectorAll("input")].map((i) => i.value).filter(Boolean);
+      const times = readTimes($("timesBox"));
       if (!times.length) return toast("Добавьте время приёма");
       const days = [...$("daysBox").querySelectorAll("input:checked")].map((i) => Number(i.value));
       if (!days.length) return toast("Выберите хотя бы один день");
