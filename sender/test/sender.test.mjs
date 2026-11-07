@@ -215,3 +215,32 @@ test("runAll обходит всех людей и не падает из-за �
   assert.equal(r.failed, 1);
   assert.deepEqual(delivered.map((d) => d.url).sort(), ["./mom.html", "./mom.html?p=state-b.json"]);
 });
+
+test("сообщение всем: каждому телефону один раз, во всех профилях", async () => {
+  const { broadcast } = await import("../runner.js");
+  const gh = fakeGitHub();
+  const base = new GitHubStore({ token: "t", repo: "me/data", fetchImpl: gh.fetchImpl });
+  const s1 = core.defaultState();
+  s1.vapid = await generateVapidKeys();
+  const a = phone("https://web.push.apple.com/a");
+  const b = phone("https://fcm.googleapis.com/fcm/send/b");
+  const gone = phone("https://web.push.apple.com/gone");
+  core.addSubscription(s1, "mom", a.subscription, "iPhone");
+  core.addSubscription(s1, "admin", b.subscription, "Android");
+  core.addSubscription(s1, "mom", gone.subscription, "iPhone");
+  await base.write(s1, null, "1");
+  const s2 = core.newProfileState("Б", s1.vapid);
+  core.addSubscription(s2, "mom", b.subscription, "Android"); // тот же телефон во втором профиле
+  await base.withPath("state-b.json").write(s2, null, "2");
+
+  const got = [];
+  const send = (sub, payload, vapid, subject) =>
+    sendPush(sub, payload, vapid, subject, async (url, init) => {
+      got.push(url);
+      return new Response("", { status: url.endsWith("/gone") ? 410 : 201 });
+    });
+  const r = await broadcast({ base, payload: { title: "Привет", body: "Тест" }, subject: "x", send, log: () => {} });
+  assert.deepEqual(r, { devices: 3, sent: 2, failed: 1, removed: 1 });
+  assert.equal(got.length, 3);
+  assert.equal((await base.read()).state.subscriptions.length, 2);
+});

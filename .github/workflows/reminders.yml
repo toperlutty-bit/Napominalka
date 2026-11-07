@@ -1,9 +1,20 @@
-name: Рассылка напоминаний (вручную)
+name: Рассылка напоминаний
 
 on:
   # Основная рассылка — каждую минуту в Cloudflare Worker (scheduler/).
-  # Здесь — только ручной запуск: для проверки и как запасной вариант.
+  # Здесь — запасной вариант по расписанию и ручной запуск (в том числе «сообщение всем»).
+  schedule:
+    - cron: "3-59/5 * * * *"
   workflow_dispatch:
+    inputs:
+      message:
+        description: "Сообщение всем подключённым телефонам (пусто — не отправлять)"
+        required: false
+        default: ""
+      title:
+        description: "Заголовок сообщения"
+        required: false
+        default: "🔔 Напоминалка"
 
 permissions:
   contents: read
@@ -32,3 +43,5 @@ jobs:
           DATA_TOKEN: ${{ secrets.DATA_TOKEN }}
           DATA_REPO: ${{ vars.DATA_REPO }}
           GITHUB_TOKEN: ${{ github.token }}
+          BROADCAST_MESSAGE: ${{ inputs.message }}
+          BROADCAST_TITLE: ${{ inputs.title }}

@@ -2,9 +2,9 @@
 // Основной запуск — каждую минуту в Cloudflare Worker (scheduler/). В логах (они публичные) — только числа.
 
 import { GitHubStore } from "../web/js/github.js";
-import { runOnce } from "./runner.js";
+import { runOnce, broadcast } from "./runner.js";
 
-export { collectEvents, runOnce, runAll } from "./runner.js";
+export { collectEvents, runOnce, runAll, broadcast } from "./runner.js";
 
 const MINUTE = 60_000;
 
@@ -67,8 +67,17 @@ async function main() {
     if (e.status === 404 || e.status === 401 || e.status === 403) await diagnoseToken(DATA_TOKEN, DATA_REPO);
     throw e;
   }
+  // Если будильник в Cloudflare уже работает — обычную рассылку делает он (чтобы не было дублей).
+  let cloudflareActive = false;
+  try {
+    const res = await fetch(process.env.SCHEDULER_STATUS_URL || "https://napominalka.napominalka-tabletok.workers.dev/status", { signal: AbortSignal.timeout(10_000) });
+    const st = res.ok ? await res.json() : {};
+    cloudflareActive = Boolean(st.tokenSet && st.dataOk);
+  } catch {}
+  if (cloudflareActive) console.log("Будильник Cloudflare работает — обычную рассылку делает он.");
+
   let failedProfiles = 0;
-  for (const [i, path] of files.entries()) {
+  for (const [i, path] of (cloudflareActive ? [] : files).entries()) {
     try {
       const stats = await runOnce({ store: base.withPath(path), fromMs, toMs, subject });
       console.log(`Человек ${i + 1} — окно ${new Date(fromMs).toISOString()} → ${new Date(toMs).toISOString()}:`, JSON.stringify(stats));
@@ -78,6 +87,14 @@ async function main() {
       if (e.status === 404 || e.status === 401 || e.status === 403) await diagnoseToken(DATA_TOKEN, DATA_REPO);
     }
   }
+  // Сообщение всем (ручной запуск с заполненным полем «message»).
+  const message = (process.env.BROADCAST_MESSAGE || "").trim();
+  if (message) {
+    const title = (process.env.BROADCAST_TITLE || "").trim() || "🔔 Напоминалка";
+    const r = await broadcast({ base, payload: { title, body: message, tag: `broadcast-${Date.now()}` }, subject });
+    console.log(`Сообщение всем: ${JSON.stringify(r)}`);
+  }
+
   if (failedProfiles) throw new Error(`Не удалось обработать: ${failedProfiles} из ${files.length}`);
 
   // Раз в сутки не даём GitHub выключить расписание из-за «неактивности» репозитория.

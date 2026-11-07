@@ -86,3 +86,50 @@ export async function runAll({ base, fromMs, toMs, subject, send = sendPush, log
   }
   return { profiles: files.length, failed, results };
 }
+
+/** Сообщение всем подключённым телефонам всех людей (каждому устройству — один раз). */
+export async function broadcast({ base, payload, subject, send = sendPush, log = console.log }) {
+  let files = await base.listProfileFiles();
+  if (!files.length) files = ["state.json"];
+  const seen = new Set();
+  let sent = 0;
+  let failed = 0;
+  let removed = 0;
+  for (const path of files) {
+    const store = base.withPath(path);
+    let state;
+    try {
+      ({ state } = await store.read());
+    } catch (e) {
+      log(`Файл ${files.indexOf(path) + 1}: ошибка чтения — ${e.message}`);
+      continue;
+    }
+    if (!state?.vapid) continue;
+    const gone = new Set();
+    for (const sub of state.subscriptions) {
+      if (seen.has(sub.subscription.endpoint)) continue;
+      seen.add(sub.subscription.endpoint);
+      const query = path !== "state.json" && sub.role === "mom" ? `?p=${encodeURIComponent(path)}` : "";
+      const url = sub.role === "mom" ? `./mom.html${query}` : "./";
+      try {
+        const r = await send(sub.subscription, { ...payload, url }, state.vapid, subject);
+        if (r.ok) sent++;
+        else {
+          failed++;
+          if (r.gone) gone.add(sub.subscription.endpoint);
+          log(`push failed: ${r.status}`);
+        }
+      } catch (e) {
+        failed++;
+        log(`push failed: ${e.message}`);
+      }
+    }
+    if (gone.size) {
+      removed += gone.size;
+      await store.update((s) => {
+        s.subscriptions = s.subscriptions.filter((x) => !gone.has(x.subscription.endpoint));
+      }, "Убрать отключённые телефоны");
+    }
+  }
+  return { devices: seen.size, sent, failed, removed };
+}
