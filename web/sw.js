@@ -17,6 +17,9 @@ self.addEventListener("push", (event) => {
       tag: data.tag || undefined,
       renotify: Boolean(data.tag),
       requireInteraction: true,
+      silent: false,
+      // Заметная вибрация (Android): длинный — пауза — длинный — пауза — очень длинный.
+      vibrate: [400, 200, 400, 200, 800],
       icon: new URL("./icon-192.png", self.registration.scope).href,
       badge: new URL("./icon-192.png", self.registration.scope).href,
       data: { url: data.url || "./mom.html" },

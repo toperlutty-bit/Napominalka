@@ -16,12 +16,39 @@ export function defaultSettings() {
     repeatInterval: 15,
     repeatCount: 2,
     notifyMissed: true,
+    // Как писать кнопки и сообщения: "f" — «Выпила», "m" — «Выпил», "n" — «Принято».
+    form: "f",
   };
+}
+
+const WORDS = {
+  f: { took: "Выпила", bought: "Купила, напоминать снова", marked: "отметила", added: "добавила лекарство", changed: "изменила расписание", deleted: "удалила лекарство", repeatIf: "если я не нажала «Выпила»" },
+  m: { took: "Выпил", bought: "Купил, напоминать снова", marked: "отметил", added: "добавил лекарство", changed: "изменил расписание", deleted: "удалил лекарство", repeatIf: "если я не нажал «Выпил»" },
+  n: { took: "Принято", bought: "Купили, напоминать снова", marked: "отметил(а)", added: "добавил(а) лекарство", changed: "изменил(а) расписание", deleted: "удалил(а) лекарство", repeatIf: "если приём не отмечен" },
+};
+
+/** Слова для кнопок и сообщений с учётом выбранной формы. */
+export function words(state) {
+  return WORDS[state?.settings?.form] || WORDS.f;
 }
 
 export function defaultState() {
   return { version: 2, settings: defaultSettings(), medicines: [], taken: {}, subscriptions: [], outbox: [], vapid: null };
 }
+
+/** Новый человек: своё расписание, но общие ключи уведомлений (один телефон может быть в нескольких профилях). */
+export function newProfileState(name, vapid, form = "n", timezone = "Europe/Moscow") {
+  const s = defaultState();
+  s.vapid = vapid;
+  s.settings.momName = cleanString(name, 40);
+  s.settings.form = ["f", "m", "n"].includes(form) ? form : "n";
+  s.settings.timezone = timezone;
+  s.settings.notifyMissed = false;
+  return s;
+}
+
+/** Имя файла профиля: "state.json" — первый (мама), остальные — "state-xxxx.json". */
+export const PROFILE_FILE_RE = /^state(-[A-Za-z0-9_-]{1,40})?\.json$/;
 
 export function normalizeState(saved) {
   const base = defaultState();
@@ -48,6 +75,12 @@ export function pruneState(state) {
 export function randomId(bytes = 9) {
   const arr = crypto.getRandomValues(new Uint8Array(bytes));
   return btoa(String.fromCharCode(...arr)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Как называть маму в уведомлениях родным: «Мама», «Галина Ивановна» (с заглавной буквы). */
+export function momLabel(state) {
+  const name = state.settings.momName?.trim() || "Мама";
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 export function cleanString(v, max) {
@@ -112,12 +145,12 @@ export function setPaused(state, medId, paused, by) {
   med.pausedAt = med.paused ? med.pausedAt || new Date().toISOString() : null;
   med.pausedBy = med.paused ? by : null;
   if (med.paused && !wasPaused && by === "mom") {
-    const mom = state.settings.momName?.trim() || "Мама";
+    const mom = momLabel(state);
     queue(state, {
       role: "admin",
       payload: {
         title: `💊 Закончились таблетки: ${med.name}`,
-        body: `${mom} отметила, что таблетки закончились. Напоминания о них на паузе, пока не нажмёте «Купили».`,
+        body: `${mom} ${words(state).marked}, что таблетки закончились. Напоминания о них на паузе, пока не нажмёте «Купили».`,
         tag: `out-${med.id}`,
         url: "./",
       },
@@ -210,11 +243,11 @@ function medDetails(med) {
 
 export function eventPayload(state, ev) {
   const { med, time, day } = ev;
-  const mom = state.settings.momName?.trim() || "Мама";
+  const mom = momLabel(state);
   const details = medDetails(med);
   const tag = `dose-${med.id}-${day}-${time}`;
   if (ev.kind === "dose") {
-    return { title: `💊 Пора принять: ${med.name}`, body: `${time}${details ? ` — ${details}` : ""}. Нажмите, чтобы отметить «Выпила».`, tag, url: "./mom.html" };
+    return { title: `💊 Пора принять: ${med.name}`, body: `${time}${details ? ` — ${details}` : ""}. Нажмите, чтобы отметить «${words(state).took}».`, tag, url: "./mom.html" };
   }
   if (ev.kind === "repeat") {
     return { title: `⏰ Напоминаю: ${med.name}`, body: `Приём в ${time} ещё не отмечен${details ? ` (${details})` : ""}. Нажмите, чтобы отметить.`, tag, url: "./mom.html" };

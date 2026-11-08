@@ -1,0 +1,16 @@
+# Будильник напоминаний (Cloudflare Workers, бесплатно). Деплой: npx wrangler deploy
+name = "napominalka"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+DATA_REPO = "toperlutty-bit/napominalka-data"
+SUBJECT = "https://toperlutty-bit.github.io"
+
+# Каждую минуту.
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = true

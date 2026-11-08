@@ -17,6 +17,9 @@ function fakeGitHub() {
     calls.push(`${init.method} ${u.pathname}`);
     assert.match(init.headers.Authorization, /^Bearer /);
     if (u.pathname === "/repos/me/data") return Response.json({ private: true, permissions: { push: true } });
+    if (u.pathname === "/repos/me/data/contents/") {
+      return Response.json([...files.keys()].map((name) => ({ name, type: "file" })).concat([{ name: "README.md", type: "file" }]));
+    }
     const m = /^\/repos\/me\/data\/contents\/(.+)$/.exec(u.pathname);
     if (!m) return Response.json({ message: "Not Found" }, { status: 404 });
     const f = files.get(m[1]);
@@ -147,4 +150,97 @@ test("проверка данных", () => {
   assert.deepEqual(med.times, ["08:00", "20:00"]);
   assert.deepEqual(med.days, []);
   assert.throws(() => core.addSubscription(s, "mom", { endpoint: "http://x", keys: {} }), /подписка/);
+});
+
+test("несколько человек: у каждого своё расписание, ссылки ведут на свою страницу", async () => {
+  const gh = fakeGitHub();
+  const base = new GitHubStore({ token: "t", repo: "me/data", fetchImpl: gh.fetchImpl });
+  const mom = core.defaultState();
+  mom.vapid = await generateVapidKeys();
+  core.saveMedicine(mom, { name: "Аспирин", times: ["08:00"] });
+  await base.write(mom, null, "init");
+
+  const me = core.newProfileState("Тимур", mom.vapid, "m");
+  core.saveMedicine(me, { name: "Витамин Д", times: ["09:00"] });
+  const phone1 = phone("https://fcm.googleapis.com/fcm/send/samsung");
+  core.addSubscription(me, "mom", phone1.subscription, "Android");
+  await base.update((s) => void core.addSubscription(s, "admin", phone1.subscription, "Android")); // тот же телефон получает и сообщения о маме
+  assert.deepEqual(await base.listProfileFiles(), ["state.json"]);
+
+  // Записываем второго человека в отдельный файл.
+  const meStore = base.withPath("state-timur.json");
+  await meStore.write(me, null, "me");
+  assert.deepEqual(await base.listProfileFiles(), ["state.json", "state-timur.json"]);
+
+  const delivered = [];
+  const send = (sub, payload, vapid, subject) =>
+    sendPush(sub, payload, vapid, subject, async (url, init) => (delivered.push({ url, init }), new Response("", { status: 201 })));
+
+  await runOnce({ store: meStore, fromMs: msk("2026-11-06T08:55"), toMs: msk("2026-11-06T09:00"), subject: "x", send });
+  assert.equal(delivered.length, 1);
+  const msg = phone1.decrypt(delivered[0].init.body);
+  assert.equal(msg.title, "💊 Пора принять: Витамин Д");
+  assert.match(msg.body, /«Выпил»/);
+  assert.equal(msg.url, "./mom.html?p=state-timur.json");
+
+  // Мамин файл не трогаем: в 09:00 у неё ничего нет.
+  delivered.length = 0;
+  await runOnce({ store: base.withPath("state.json"), fromMs: msk("2026-11-06T08:55"), toMs: msk("2026-11-06T09:00"), subject: "x", send });
+  assert.equal(delivered.length, 0);
+  assert.throws(() => base.withPath("../evil.json"), /профиля/);
+});
+
+test("runAll обходит всех людей и не падает из-за одного сломанного файла", async () => {
+  const { runAll } = await import("../runner.js");
+  const gh = fakeGitHub();
+  const base = new GitHubStore({ token: "t", repo: "me/data", fetchImpl: gh.fetchImpl });
+  const s1 = core.defaultState();
+  s1.vapid = await generateVapidKeys();
+  core.saveMedicine(s1, { name: "А", times: ["08:00"] });
+  const p1 = phone("https://web.push.apple.com/a");
+  core.addSubscription(s1, "mom", p1.subscription, "iPhone");
+  await base.write(s1, null, "1");
+  const s2 = core.newProfileState("Б", s1.vapid);
+  core.saveMedicine(s2, { name: "Б", times: ["08:00"] });
+  core.addSubscription(s2, "mom", p1.subscription, "iPhone");
+  await base.withPath("state-b.json").write(s2, null, "2");
+  gh.files.set("state-broken.json", { content: Buffer.from("{broken json").toString("base64"), sha: "x" });
+
+  const delivered = [];
+  const send = (sub, payload, vapid, subject) =>
+    sendPush(sub, payload, vapid, subject, async (url, init) => (delivered.push(p1.decrypt(init.body)), new Response("", { status: 201 })));
+  const logs = [];
+  const r = await runAll({ base, fromMs: msk("2026-11-06T07:59"), toMs: msk("2026-11-06T08:00"), subject: "x", send, log: (m) => logs.push(m) });
+  assert.equal(r.profiles, 3);
+  assert.equal(r.failed, 1);
+  assert.deepEqual(delivered.map((d) => d.url).sort(), ["./mom.html", "./mom.html?p=state-b.json"]);
+});
+
+test("сообщение всем: каждому телефону один раз, во всех профилях", async () => {
+  const { broadcast } = await import("../runner.js");
+  const gh = fakeGitHub();
+  const base = new GitHubStore({ token: "t", repo: "me/data", fetchImpl: gh.fetchImpl });
+  const s1 = core.defaultState();
+  s1.vapid = await generateVapidKeys();
+  const a = phone("https://web.push.apple.com/a");
+  const b = phone("https://fcm.googleapis.com/fcm/send/b");
+  const gone = phone("https://web.push.apple.com/gone");
+  core.addSubscription(s1, "mom", a.subscription, "iPhone");
+  core.addSubscription(s1, "admin", b.subscription, "Android");
+  core.addSubscription(s1, "mom", gone.subscription, "iPhone");
+  await base.write(s1, null, "1");
+  const s2 = core.newProfileState("Б", s1.vapid);
+  core.addSubscription(s2, "mom", b.subscription, "Android"); // тот же телефон во втором профиле
+  await base.withPath("state-b.json").write(s2, null, "2");
+
+  const got = [];
+  const send = (sub, payload, vapid, subject) =>
+    sendPush(sub, payload, vapid, subject, async (url, init) => {
+      got.push(url);
+      return new Response("", { status: url.endsWith("/gone") ? 410 : 201 });
+    });
+  const r = await broadcast({ base, payload: { title: "Привет", body: "Тест" }, subject: "x", send, log: () => {} });
+  assert.deepEqual(r, { devices: 3, sent: 2, failed: 1, removed: 1 });
+  assert.equal(got.length, 3);
+  assert.equal((await base.read()).state.subscriptions.length, 2);
 });
